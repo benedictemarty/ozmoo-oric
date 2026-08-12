@@ -160,6 +160,43 @@ ROMDIS b1, EPROM b7, INTENA b0). Commandes WD1793 : `$00` Restore, `$10` Seek
 - [ ] Boot loader : charger l'interpréteur + le story-file depuis disque et
       initialiser `disk_info` → **première exécution réelle du moteur**.
 
+### EPIC 5.0 — Boot loader / première exécution *(analyse & plan)*
+
+**Constat clé** : en mode VMEM, `disk_info` (`disk.asm`, buffer `!fill 71` pour Z3)
+n'est **pas** figé dans le binaire : il est **rempli au boot** en lisant une
+**piste de config** (`CONF_TRK=1`) que `make.rb` écrit avec la géométrie du
+story-file. `readblock` s'en sert pour convertir bloc→piste/secteur.
+
+**Structure `disk_info`** (déduite de `disk.asm`) :
+- `+0` interleave · `+2` nombre de disques · puis, par disque (index x) :
+  `+3` index disque suivant, `+4` device, `+5/+6` blocs, `+7` nb de pistes avec
+  entrées, `+8..` par piste : (secteurs sautés/2 sur 2 bits | secteurs utilisés sur 6 bits).
+
+**Deux voies vers la première exécution :**
+
+- **Voie A — VMEM + constructeur de disque Oric (voie réelle, gros jeux).**
+  Répliquer la logique de disposition de `make.rb` (classe disque : interleave,
+  `track_length`, `reserved_sectors`, `storydata_start/end_track`, écriture de la
+  piste de config) pour produire une disquette **MFM Oric** (42 pistes × 17 secteurs)
+  contenant : les blocs du story-file + la piste de config. Puis boot loader :
+  charger l'interpréteur (tape ou secteur boot) → lire la piste de config dans
+  `disk_info` → `jmp program_start`. `read_track_sector` (déjà validé) fait la pagination.
+
+- **Voie B — non-VMEM + petit story embarqué (voie courte, preuve « le moteur tourne »).**
+  Construire Ozmoo **sans VMEM** (tout le jeu en RAM, ~≤ 40 Ko sur Oric) avec un
+  **story-file minuscule** (ex. un `.z3` de test) embarqué, chargé via tape avec
+  l'interpréteur. Évite tout le constructeur de disque. Fait exécuter du Z-code et
+  imprimer via `s_printchar` → **prouve que le moteur tourne sur Oric**. À vérifier :
+  support non-VMEM générique (README : « C64/Plus4 »), et mécanisme d'embarquement du story.
+
+**Recommandation** : Voie B d'abord (preuve d'exécution rapide, valide moteur+écran+
+clavier ensemble), puis Voie A pour les vrais jeux V5 paginés.
+
+**Prochaines étapes concrètes :**
+1. Choisir un story-file de test minimal (`test/` en contient : czech/etude/praxix).
+2. Voie B : tenter un build non-VMEM Oric + embarquement story → exécuter via tape.
+3. Voie A : porter le constructeur de disque (layout + piste config) pour l'Oric MFM.
+
 ### EPIC 5 — Intégration & jeu
 - [ ] Image `.dsk` Sedoric bootable contenant interpréteur + jeu
 - [ ] Faire tourner un jeu **V3** (parité Pinforic) sur Phosphoric

@@ -3,6 +3,23 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.10.0] - 2026-08-12 — EPIC 5 (kickoff) : plan boot loader / première exécution
+### Analysé
+- En VMEM, `disk_info` est rempli au **boot** depuis une **piste de config**
+  (`CONF_TRK=1`) que `make.rb` écrit avec la géométrie du story-file. Structure
+  `disk_info` décodée (interleave, nb disques, par disque : device/blocs/pistes/
+  secteurs par piste).
+- Deux voies documentées vers la 1re exécution :
+  - **A (VMEM + constructeur de disque Oric)** : répliquer le layout make.rb (blocs
+    story + piste config) sur MFM Oric, boot loader lit la config → `program_start`.
+  - **B (non-VMEM + petit story embarqué)** : voie courte pour prouver « le moteur
+    tourne » (Z-code exécuté + `s_printchar`), sans constructeur de disque.
+- Recommandation : B d'abord (preuve d'exécution), puis A (vrais jeux paginés).
+
+### Reste
+- Choisir un story de test minimal ; tenter build non-VMEM Oric + embarquement (B) ;
+  porter le constructeur de disque + piste config (A).
+
 ## [0.9.0] - 2026-08-12 — EPIC 3 : lecture clavier (scan matrice) validée
 ### Ajouté
 - **`asm/keyboard-oric.asm`** : scan de la matrice clavier Oric + `read_key` (→ ASCII).
