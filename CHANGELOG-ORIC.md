@@ -3,6 +3,29 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [Non publié] - 2026-08-12 — EPIC 5 : cause racine du hang d'init IDENTIFIÉE
+### Diagnostic (outillage émulateur)
+- **Cause racine du blocage v0.11.0 confirmée** : `splash_screen` (appelé en L946
+  de `ozmoo.asm`, `SPLASHWAIT=15`) exécute `jsr kernal_getchar` (L91 de
+  `splashscreen.asm`), or `kernal_getchar = $0000` dans `constants-oric.asm:168`
+  (placeholder `>>> PORT TODO`). Le `jsr $0000` déraille l'exécution → atterrit dans
+  le scanner de chaîne de la ROM BASIC (`$D5C5-$D5D0`, recherche du `"` #$22) avec
+  `$DE/$DF=$AE03` (zone `$55`, jamais `"` ni `0`) → **boucle infinie**.
+- Second placeholder sur le même chemin : `wait_a_jiffy` (L97 splash) → `kernal_delay_1ms`
+  = `$0000` (`constants-oric.asm:134`). À corriger conjointement.
+- Méthode : `--profile` (adresse chaude `$D5C5` = 9,7 % × plusieurs = la boucle),
+  `--dump-ram-at` (ZP `$DE/$DF`, `$24/$25=$2222`, pile), `--vicelabels`/`--symbols`
+  (noms Ozmoo). Remplace la bissection par marqueurs écran, jusque-là bloquée.
+
+### Infra
+- Script de repro+diagnostic `test-oric/trace_hang.sh` : build voie B non-VMEM avec
+  labels VICE, image `$500`+story, run headless ROM+`-f`+`CLOAD`, profil + dump RAM.
+
+### Reste (fix)
+- Brancher `kernal_getchar` (non bloquant → 0 si pas de touche) et `kernal_delay_1ms`
+  sur les implémentations Oric (`keyboard-oric` `read_key` + temporisation VIA) —
+  complétion EPIC 3. Puis relancer `trace_hang.sh` → marqueurs 1/2/3.
+
 ## [0.11.0] - 2026-08-12 — EPIC 5 : l'interpréteur porté S'EXÉCUTE sur Oric
 ### Majeur
 - **Build non-VMEM Oric** (sans `-DVMEM`) assemble (exit 0). Image combinée
