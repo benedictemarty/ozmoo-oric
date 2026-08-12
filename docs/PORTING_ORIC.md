@@ -131,12 +131,22 @@ est **`read_track_sector`** (`disk.asm`) :
 - [~] **Gate outillage** : `sedoric_inject.py` attend un `.dsk` **brut** ; `SEDO40u.DSK`
       est en **MFM** → utiliser `dsk_raw2mfm.py` (conversion raw↔MFM) pour injecter un ML.
 
+**Registres Microdisc (validés) :** `$0310` cmd/statut (BUSY=$01, DRQ=$02),
+`$0311` piste, `$0312` secteur, `$0313` data, `$0314` contrôle (drive b5-6, side b4,
+ROMDIS b1, EPROM b7, INTENA b0). Commandes WD1793 : `$00` Restore, `$10` Seek
+(cible = registre data), `$80` Read Sector.
+
 **Backlog EPIC 4 :**
-- [ ] Maîtriser la construction d'un `.dsk` Oric (raw↔MFM) + injecter/lancer un ML depuis disque.
-- [ ] Écrire `read_track_sector` Oric (WD1793) → lecture secteur en RAM.
+- [x] Construction `.dsk` Oric à **contenu connu** (raw side-major → MFM via
+      `dsk_raw2mfm.py`) pour tests déterministes.
+- [x] **`asm/disk-oric.asm` : `read_track_sector` WD1793 écrit et VALIDÉ** —
+      contrat Ozmoo (A=piste, X=secteur, Y=device, dest=`readblocks_mempos`).
+      Tests PASS : lecture piste0/secteur1, **et seek+lecture piste2/secteur3**
+      (`test-oric/read_sector*.asm`, `rts_test.asm` — motif connu retrouvé à l'écran).
 - [ ] Setup `disk_info` (géométrie disque Oric) + placement du story-file.
-- [ ] Brancher VMEM sur ce `read_track_sector` (pagination high memory).
-- [ ] Écriture secteur → save / restore d'état.
+- [ ] Brancher VMEM sur ce `read_track_sector` (source `disk-oric.asm` pour `TARGET_ORIC`).
+- [ ] Écriture secteur (commande `$A0`) → save / restore d'état.
+- [ ] Chargement/boot du moteur depuis disque (ou tape en attendant).
 
 ### EPIC 5 — Intégration & jeu
 - [ ] Image `.dsk` Sedoric bootable contenant interpréteur + jeu

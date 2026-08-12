@@ -3,6 +3,30 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.7.0] - 2026-08-12 — EPIC 4 : read_track_sector (WD1793) écrit et validé
+### Ajouté
+- **`asm/disk-oric.asm`** : `read_track_sector` pour le Microdisc WD1793 — LA seule
+  routine disque machine-spécifique. Contrat Ozmoo respecté (A=piste, X=secteur,
+  Y=device, dest=`readblocks_mempos`). Séquence : contrôle `$0314`, Restore, Seek
+  (data reg), Read Sector `$80`, polling BUSY/DRQ, lecture `$0313`.
+- `test-oric/read_sector.asm`, `read_sector_seek.asm`, `rts_test.asm` : tests sur
+  disque à **contenu connu** (raw→MFM via `dsk_raw2mfm.py`).
+
+### Validé (sur Phosphoric)
+- Lecture **piste0/secteur1** : motif connu affiché → PASS.
+- **Seek + lecture piste2/secteur3** : motif distinct affiché → PASS.
+- `read_track_sector` **paramétré** (registres) : PASS.
+- → Le verrou technique majeur d'EPIC 4 (pagination VMEM) est levé : lire un secteur
+  arbitraire du disque en RAM fonctionne.
+
+### Méthode
+- Disque de test déterministe : image brute side-major avec motif ASCII connu à
+  (piste,secteur) → conversion MFM → lecture vérifiée par capture écran.
+
+### Reste EPIC 4
+- `disk_info` (géométrie) + placement story-file ; brancher VMEM sur `disk-oric.asm` ;
+  écriture secteur (save/restore) ; boot du moteur.
+
 ## [0.6.0] - 2026-08-12 — EPIC 4 (kickoff) : analyse contrat disque + socle validé
 ### Analysé
 - **`read_track_sector`** identifiée comme la SEULE routine disque machine-spécifique
