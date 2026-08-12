@@ -3,6 +3,37 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.14.0] - 2026-08-12 — EPIC 2/5 : PREMIER TEXTE DE STORY LISIBLE SUR ORIC
+### Majeur — JALON
+- **Une story Z-machine s'affiche réellement et lisiblement sur Oric.** czech.z3
+  (Comprehensive Z-machine Emulation CHecker) tourne et imprime son rapport :
+  `CZECH: THE COMPREHENSIVE Z-MACHINE EMULATION CHECKER, VERSION 0.8`,
+  `PRINT WORKS OR YOU WOULDN'T BE SEEING THIS.`, puis `JUMPS`, `VARIABLES`,
+  `ARITHMETIC OPS`, `LOGICAL OPS`, `MEMORY`, `SUBROUTINES`, `OBJECTS`... Le décodage
+  Z-string, le word-wrap et l'affichage bout-en-bout fonctionnent sur la machine.
+- **Bug corrigé : `s_reverse` (`$b3`) non initialisé** dans `screenkernal-oric.asm`.
+  Sur C64 c'est `screenkernal.asm` (non utilisé sur Oric) qui le met à 0. Non
+  initialisé, il valait `$FF` ; or `print_line_from_buffer` fait `ora print_buffer2,y`
+  (drapeau inverse-vidéo par caractère = `s_reverse`), donc **chaque caractère
+  bufferisé était écrasé en `$FF`** (invisible). Seul le dernier caractère de
+  chaque ligne survivait (`s_printchar` ignore `s_reverse`) → symptôme « 1 char
+  erroné par ligne ». Fix : `s_init` zéro-initialise `s_ignore_next_linebreak`
+  (3 o) + `s_reverse` (`$b0-$b3`), comme le C64.
+
+### Méthode (instrumentation)
+- Diagnostic par double journalisation `ORIC_LOG_CHARS` : le flux à l'entrée de
+  `printchar_buffered` (décodé) était **parfait** (« RTRUE.RFALSE... »), prouvant
+  que le décodeur Z fonctionnait et isolant le bug dans le word-wrap. Le dump écran
+  hexa a révélé les octets `$FF` → cause racine `ora print_buffer2`.
+- Instrumentation d'investigation retirée des fichiers partagés (`screen.asm` intact) ;
+  seul le log `s_printchar` minimal reste dans `screenkernal-oric.asm` (OFF par défaut).
+
+### Reste (cosmétique / suite)
+- Texte tout en MAJUSCULES : mapping casse PETSCII→Oric (lettres min. ZSCII rendues
+  en capitales). Inverse-vidéo réel (`$12`/`$92`) non géré dans `s_printchar`.
+- czech atteint ensuite un `@read` et attend l'entrée clavier (à brancher :
+  `kernal_readchar`/`getchar` → boucle de saisie ligne).
+
 ## [0.13.0] - 2026-08-12 — EPIC 2/5 : rendu écran validé ($93), Z-code exécuté
 ### Majeur
 - **La couche écran Oric affiche du vrai texte dynamique.** Sans drapeau debug,

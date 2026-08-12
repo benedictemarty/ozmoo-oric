@@ -32,6 +32,13 @@ s_init
 	sta zp_screencolumn
 	sta zp_screenrow
 	sta s_scrolled_lines
+	; Zero s_ignore_next_linebreak (3 o) + s_reverse ($b0-$b3), comme screenkernal.asm.
+	; CRUCIAL : s_reverse non initialise -> print_buffer2 rempli de $FF -> chaque
+	; caractere bufferise ecrase en $FF par 'ora print_buffer2' (texte invisible).
+	ldx #3
+-	sta s_ignore_next_linebreak,x
+	dex
+	bpl -
 	lda #$ff
 	sta s_current_screenpos_row       ; force recalcul
 	jsr s_cls_oric
