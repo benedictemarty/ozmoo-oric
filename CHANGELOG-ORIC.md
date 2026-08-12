@@ -3,6 +3,28 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.3.0] - 2026-08-12 — EPIC 2 (en cours) : pipeline de test + modèle écran validés
+### Ajouté
+- `test-oric/run-test.sh` : harnais de test bout-en-bout (assemble un .asm avec
+  ACME → `bin2tap` → exécute dans Phosphoric headless via CLOAD+fast-load →
+  capture `--screenshot-text` → **assertion** sur le contenu écran).
+- `test-oric/screen_hello.asm`, `test-oric/screen_twolines.asm` : tests d'affichage
+  (adressage absolu) — **PASS** ("HELLO ORIC", puis deux lignes "LIGNE UN/DEUX").
+- `test-oric/screen_cursor.asm` : primitive `o_chrout` (curseur+wrap), **WIP**.
+
+### Validé
+- **Pipeline complet prouvé** : on peut assembler du 6502, le charger et l'exécuter
+  dans l'émulateur Phosphoric, et vérifier l'écran automatiquement.
+- **Modèle écran Oric** : base `$BB80`, 40×28, codes ASCII, octets 0-31 = attributs
+  série inline, stride ligne = 40, inverse = bit 7. (Confirmé par poke direct + ML.)
+- **Méthode de chargement ML** : tape auto-run + `CLOAD""` déclenché par `--type-keys`
+  (le `-f` seul n'amorce pas la lecture tape).
+
+### Connu (à corriger)
+- `o_chrout` via pointeur page-zéro `$f0-$f3` : conflit avec l'usage ROM Oric
+  (curseur système) → sortie corrompue. Correctif : reloger la ZP (carte ZP libre
+  Oric à établir) ou code auto-modifiant. Prochaine tâche EPIC 2.
+
 ## [0.2.0] - 2026-08-12 — EPIC 1 terminé : le moteur assemble pour l'Oric
 ### Ajouté
 - `build-oric.sh` : script de build ACME dédié (indépendant de make.rb / exomizer
