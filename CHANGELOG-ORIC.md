@@ -3,6 +3,23 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.19.0] - 2026-08-12 — EPIC 5 voie A : socle constructeur de disque (vérifié)
+### Ajouté
+- **`tools/oric_disk.py`** : socle du constructeur de disque VMEM Oric. Porte
+  fidèlement, en Python, le **placement des blocs story** (make.rb `add_story_data`)
+  et le **mapping bloc VMEM → (piste, secteur)** (asm `readblock`), qui partagent la
+  logique d'interleave. **Test de cohérence aller-retour : 2092 blocs vérifiés**
+  (interleave 0/1/3/5, tailles 1..300) → la structure `disk_info` produite est bien
+  celle qu'attend l'interpréteur.
+- Format `disk_info` documenté (par disque) : `[taille, device, lastblock+1 (word),
+  nbpistes] + octet/piste + nom` ; octet/piste = `64*(réservés/2)+secteurs_story`.
+
+### Plan
+- Voie A détaillée dans `docs/PORTING_ORIC.md` §EPIC 5 : (1) constructeur *(socle fait)*
+  → en-tête config + écriture MFM Oric ; (2) init `disk_info` au boot depuis piste
+  config ; (3) boot loader. Points à valider sur Oric : base secteur (0 vs 1-based
+  Sedoric), gestion des 2 faces dans `read_track_sector`.
+
 ## [0.18.0] - 2026-08-12 — EPIC 3 : anti-rebond clavier
 ### Amélioré
 - **`kernal_getchar` : anti-rebond.** `read_key` fait un scan LIVE de la matrice

@@ -208,7 +208,28 @@ clavier ensemble), puis Voie A pour les vrais jeux V5 paginés.
 - [ ] Localiser/corriger le blocage d'init (probable code REU/SID/scrollback mal gardé
       pour Oric, ou routine appelant un placeholder). Puis atteindre l'exécution Z-code.
 
-**Voie A (jeux réels) :** porter le constructeur de disque (layout + piste config) pour l'Oric MFM — après la preuve d'exécution voie B.
+**Voie A (jeux réels) — plan détaillé et socle vérifié.** La voie B (non-VMEM,
+tape) est validée jusqu'au bout : czech PASSE 349/0, interactif. Pour les vrais
+jeux V5 (trop gros pour la RAM), il faut la voie A = VMEM + disque. `make.rb` ne
+connaît PAS Oric (cibles Commodore, formats D64/D81, exomizer) → vrai portage du
+constructeur de disque. Découpage :
+
+1. **Constructeur de disque** *(socle Python fait : `tools/oric_disk.py`)*. Porte
+   fidèlement le placement des blocs story (make.rb `add_story_data`) et le mapping
+   `bloc → (piste, secteur)` (asm `readblock`). **Test aller-retour : 2092 blocs OK**
+   (interleave 0/1/3/5) → la structure `disk_info` produite est celle qu'attend
+   l'interpréteur. Format `disk_info` d'un disque (lu par `readblock`) :
+   `[taille=11+nbpistes, device, lastblock+1_hi, lastblock+1_lo, nbpistes] + octets/piste + 6 octets nom`
+   ; octet/piste = `64*(secteurs_réservés/2) + secteurs_story` (bits 0-5 = secteurs
+   utilisés, bits 6-7 = sautés/2). Reste : en-tête config global + écriture image MFM Oric.
+2. **Init `disk_info` au boot** depuis la piste config (`CONF_TRK`, remplie par le
+   constructeur) → buffer `disk_info` (`!fill 71` en Z3).
+3. **Boot loader** : charger l'interpréteur + init `disk_info` → 1re exécution VMEM.
+
+⚠️ **À valider sur Oric** (détails non tranchés côté format) : base de numérotation
+des **secteurs** (Sedoric = 1-based ; `readblock` produit du 0-based → +1 probable
+dans `read_track_sector`), gestion des **2 faces** (le `read_track_sector` Oric
+actuel force side 0). Le socle `read_track_sector` WD1793 est déjà validé isolément.
 
 ### EPIC 5 — Intégration & jeu
 - [ ] Image `.dsk` Sedoric bootable contenant interpréteur + jeu
