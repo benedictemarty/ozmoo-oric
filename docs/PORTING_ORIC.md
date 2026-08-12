@@ -224,7 +224,19 @@ constructeur de disque. Découpage :
    utilisés, bits 6-7 = sautés/2). Reste : en-tête config global + écriture image MFM Oric.
 2. **Init `disk_info` au boot** depuis la piste config (`CONF_TRK`, remplie par le
    constructeur) → buffer `disk_info` (`!fill 71` en Z3).
+   *Ajout : `oric_disk.py build_disk()` écrit une image BRUTE side-major avec la
+   story placée + sort les octets `disk_info` (CLI `oric_disk.py story.z3 out.raw`).
+   Testé : 600 blocs relus depuis l'image == story.*
 3. **Boot loader** : charger l'interpréteur + init `disk_info` → 1re exécution VMEM.
+
+⚠️ **Finding (harnais readblock standalone)** : `readblock` ne trouve la bonne piste
+que si `.blocks_to_go` est réordonné en big-endian par un passage dans `.next_disk`
+(réordonnancement `.blocks_to_go_tmp`). Or ce passage n'a lieu que si le bloc n'est
+PAS sur le 1er disque. Donc **le `disk_info` réel place la story en disque ≥ 1**, avec
+une entrée « disque de sauvegarde » (index 0) en tête (cf. make.rb `build_S1`/`build_S2`).
+La validation on-Oric du `readblock` assembleur doit donc utiliser la structure
+`disk_info` COMPLÈTE (préambule interleave/saveslots/ndisks + entrée save + entrée
+story) — à faire dans le contexte VMEM réel, pas en harnais mono-disque.
 
 ⚠️ **À valider sur Oric** (détails non tranchés côté format) : base de numérotation
 des **secteurs** (Sedoric = 1-based ; `readblock` produit du 0-based → +1 probable

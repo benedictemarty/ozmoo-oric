@@ -3,6 +3,27 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.21.0] - 2026-08-13 — EPIC 5 voie A : constructeur écrit de vraies images
+### Ajouté
+- **`oric_disk.py build_disk()`** : écrit une image disque BRUTE side-major
+  (2×42×17×256) avec les blocs story placés aux (piste, secteur) calculés, et renvoie
+  les octets `disk_info`. CLI : `oric_disk.py <story> <out.raw> [interleave]`
+  (à convertir en MFM via `dsk_raw2mfm.py`). Test : **600 blocs relus depuis l'image
+  construite == story** (placement + écriture + readblock cohérents en Python).
+
+### Finding (harnais readblock standalone)
+- Tentative de valider le `readblock` **assembleur** on-Oric avec un `disk_info`
+  mono-disque : `readblock` calcule une piste erronée. Cause identifiée : la track-walk
+  attend `.blocks_to_go` réordonné (big-endian) par un passage dans `.next_disk`, qui
+  n'a lieu que si le bloc n'est PAS sur le 1er disque. **Le `disk_info` réel place donc
+  la story en disque ≥ 1** (entrée « save disk » en tête, cf. make.rb `build_S1`). La
+  validation on-Oric doit utiliser la structure `disk_info` complète → contexte VMEM
+  réel. Consigné dans `docs/PORTING_ORIC.md`. `readblocks_currentblock` confirmé
+  little-endian (via `vmem.asm`).
+
+### Tests
+- Round-trip Python 2092 + 600 blocs OK. (czech/init_e2e/rts_sectorbase inchangés.)
+
 ## [0.20.0] - 2026-08-13 — EPIC 5 voie A : base secteur validée sur Oric (+1)
 ### Résolu (doc « Sedoric 3.0 à nu » + validation machine)
 - **Numérotation des secteurs tranchée : 1-based.** Les ID physiques Sedoric/MFM

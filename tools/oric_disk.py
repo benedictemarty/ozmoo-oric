@@ -167,6 +167,35 @@ def readblock_map(block, disk_info_entry, interleave=0, nonstored_pages=0):
 
 
 # --------------------------------------------------------------------------
+# 4) ÉCRITURE d'une image disque brute (story placée) + disk_info
+# --------------------------------------------------------------------------
+def raw_offset(side, track, sector, sectors_per_track=SEDORIC_SECTORS):
+    """Offset fichier d'un secteur dans l'image BRUTE side-major (ordre lu par
+    Phosphoric via dsk_raw2mfm : position = side*tracks + track). `sector` est
+    l'index 0-based dans la piste ; l'ID physique MFM sera sector+1."""
+    return ((side * SEDORIC_TRACKS_PER_SIDE + track) * sectors_per_track + sector) * 256
+
+
+def build_disk(story_bytes, geo: Geometry, device=0):
+    """Construit l'image disque BRUTE (side-major, 2x42x17x256) avec les blocs
+    story placés aux (piste, secteur) calculés, et renvoie (raw_image, disk_info,
+    placement). `disk_info` = entrée prête pour l'interpréteur (dict).
+    Story sur la face 0 (pistes 1..41) ; suppose que la story tient sur une face."""
+    nblocks = (len(story_bytes) + 255) // 256
+    p = place_story(nblocks, geo)
+    if len(p.blocks) < nblocks:
+        raise ValueError(f"disque trop petit : {len(p.blocks)}/{nblocks} blocs placés")
+    total = SEDORIC_SIDES * SEDORIC_TRACKS_PER_SIDE * SEDORIC_SECTORS * 256
+    raw = bytearray(total)
+    for n, (track, sector) in enumerate(p.blocks):
+        block = story_bytes[n * 256:(n + 1) * 256]
+        block = block + bytes(256 - len(block))     # padding dernier bloc
+        off = raw_offset(0, track, sector)
+        raw[off:off + 256] = block
+    return bytes(raw), build_disk_info_entry(p.config_track_map, device), p
+
+
+# --------------------------------------------------------------------------
 # Test de cohérence aller-retour
 # --------------------------------------------------------------------------
 def _roundtrip_test():
@@ -187,5 +216,62 @@ def _roundtrip_test():
     return ok
 
 
+def _disk_data_test():
+    """Vérifie qu'une image disque construite se relit correctement : pour chaque
+    bloc N, readblock_map(N) -> (piste, secteur) -> octets à cet emplacement dans
+    l'image brute == bloc N de la story. Prouve placement+disk_info+écriture cohérents."""
+    checks = 0
+    for interleave in (0, 1, 3):
+        geo = default_microdisc(tracks=41, sectors=17, config_track=1,
+                                config_sectors=0, interleave=interleave)
+        # story synthétique : bloc N -> 256 octets = (N, N+1, ...) & 0xff
+        nblocks = 200
+        story = bytes(((n + i) & 0xff) for n in range(nblocks) for i in range(256))
+        raw, info, p = build_disk(story, geo)
+        for n in range(nblocks):
+            track, sector = readblock_map(n, info, interleave=interleave)
+            off = raw_offset(0, track, sector)
+            assert raw[off:off + 256] == story[n * 256:(n + 1) * 256], \
+                f"interleave={interleave} bloc {n}: relecture incorrecte"
+            checks += 1
+    print(f"OK: {checks} blocs relus depuis l'image disque == story (placement+écriture+readblock)")
+    return checks
+
+
+def disk_info_bytes(info, name_bytes=None):
+    """Sérialise l'entrée disk_info (comme make.rb build_S1) :
+    [taille, device, lastblock+1_hi, lastblock+1_lo, nbpistes] + octets/piste + nom(6)."""
+    if name_bytes is None:
+        name_bytes = [0, 0, 0, 0, 0, 0]   # nom neutre (6 octets)
+    lb = info["last_block_plus_1"]
+    return ([info["size"], info["device"], lb >> 8, lb & 0xff,
+             len(info["track_bytes"])] + list(info["track_bytes"]) + list(name_bytes))
+
+
+def _cli(argv):
+    import sys
+    if len(argv) < 3:
+        print("usage: oric_disk.py <story.z*> <out.raw> [interleave]\n"
+              "  construit une image BRUTE side-major (à convertir en MFM via "
+              "dsk_raw2mfm.py) ; imprime les octets disk_info.")
+        return 1
+    story = open(argv[1], "rb").read()
+    interleave = int(argv[3]) if len(argv) > 3 else 0
+    geo = default_microdisc(tracks=41, sectors=17, config_track=1,
+                            config_sectors=0, interleave=interleave)
+    raw, info, p = build_disk(story, geo)
+    open(argv[2], "wb").write(raw)
+    di = disk_info_bytes(info)
+    print(f"story={len(story)}o -> {len(p.blocks)} blocs, image brute {len(raw)}o -> {argv[2]}")
+    print(f"1ers blocs (bloc->piste,secteur): "
+          + ", ".join(f"{n}->{p.blocks[n]}" for n in range(min(6, len(p.blocks)))))
+    print(f"disk_info ({len(di)} octets) = " + " ".join(f"{b:02x}" for b in di))
+    return 0
+
+
 if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 1:
+        sys.exit(_cli(sys.argv))
     _roundtrip_test()
+    _disk_data_test()
