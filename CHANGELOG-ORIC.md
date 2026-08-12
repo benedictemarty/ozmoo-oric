@@ -3,6 +3,28 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.11.0] - 2026-08-12 — EPIC 5 : l'interpréteur porté S'EXÉCUTE sur Oric
+### Majeur
+- **Build non-VMEM Oric** (sans `-DVMEM`) assemble (exit 0). Image combinée
+  interpréteur ($500..$2eff) + story `.z3` (à `story_start=$2f00`), chargée via tape.
+- **Preuve d'exécution** : `program_start` ($500) est atteint et exécuté sur Oric
+  (marqueur 'Z' + halt via drapeau `ORIC_HALT_AT_START`). L'init efface l'écran (`s_init`).
+  → Moteur + écran + (assemblage) tournent réellement sur la machine.
+
+### En cours (debug)
+- Blocage dans le code d'init, entre `deletable_screen_init_1` (cls OK) et
+  `deletable_init` (~L1058), indépendant du story. Bisection par `ORIC_DEBUG_INIT`.
+- Bug identifié : `s_printchar` ne gère pas les codes de contrôle PETSCII
+  (147 = clear screen) — à traiter dans `screenkernal-oric`.
+
+### Infra
+- Drapeaux debug guardés `ORIC_HALT_AT_START` / `ORIC_DEBUG_INIT` (OFF en build normal ;
+  builds VMEM et non-VMEM vérifiés exit 0).
+
+### Reste
+- Localiser/corriger le blocage d'init → atteindre l'exécution Z-code (1er texte de jeu).
+- Gérer les codes de contrôle dans `s_printchar`. Puis voie A (constructeur de disque).
+
 ## [0.10.0] - 2026-08-12 — EPIC 5 (kickoff) : plan boot loader / première exécution
 ### Analysé
 - En VMEM, `disk_info` est rempli au **boot** depuis une **piste de config**

@@ -331,6 +331,13 @@
 }
 
 program_start
+!ifdef TARGET_ORIC {
+!ifdef ORIC_HALT_AT_START {
+	lda #$5a          ; DEBUG : marqueur 'Z' -> $BB80 puis halt
+	sta $bb80
+-	jmp -
+}
+}
 !ifdef TARGET_C128 {
 	lda #%00001110 ; 48K RAM0 (0-$c000)
 	sta $ff00
@@ -1048,8 +1055,18 @@ game_id		!byte 0,0,0,0
 
 .supercpu
 }
+!ifdef ORIC_DEBUG_INIT {
+	lda #$31 : sta $bb80    ; '1' : avant deletable_init
+}
 	jsr deletable_init
+!ifdef ORIC_DEBUG_INIT {
+	lda #$32 : sta $bb81    ; '2' : deletable_init OK
+}
 	jsr parse_object_table
+!ifdef ORIC_DEBUG_INIT {
+	lda #$33 : sta $bb82    ; '3' : parse_object_table OK
+-	jmp -
+}
 !ifndef Z5PLUS {
 	; Setup default dictionary
 	jsr parse_default_dictionary
@@ -1065,12 +1082,21 @@ game_id		!byte 0,0,0,0
 
 	jsr deletable_screen_init_2
 
+!ifdef ORIC_DEBUG_INIT {
+	lda #$41 : sta $bb80    ; 'A' : init ecran OK
+}
+
 !ifndef TARGET_X16 {
 	lda #0
 	sta keyboard_buff_len
 }
 
 	jsr z_init
+
+!ifdef ORIC_DEBUG_INIT {
+	lda #$42 : sta $bb81    ; 'B' : z_init OK
+-	jmp -                   ; halt
+}
 
 !ifdef TARGET_C128 {
 	; Let's speed things up.

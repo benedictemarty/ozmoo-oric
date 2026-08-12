@@ -192,10 +192,23 @@ story-file. `readblock` s'en sert pour convertir bloc→piste/secteur.
 **Recommandation** : Voie B d'abord (preuve d'exécution rapide, valide moteur+écran+
 clavier ensemble), puis Voie A pour les vrais jeux V5 paginés.
 
-**Prochaines étapes concrètes :**
-1. Choisir un story-file de test minimal (`test/` en contient : czech/etude/praxix).
-2. Voie B : tenter un build non-VMEM Oric + embarquement story → exécuter via tape.
-3. Voie A : porter le constructeur de disque (layout + piste config) pour l'Oric MFM.
+**Avancement voie B (preuve d'exécution) :**
+- [x] **Build non-VMEM Oric assemble** (sans `-DVMEM`, exit 0). `program_start=$500`,
+      `story_start=$2f00` (code padé jusque-là).
+- [x] Image combinée = interpréteur (`$500..$2eff`) + story `.z3` (à `$2f00`), chargée
+      via tape (CLOAD). Stories de test : `test/czech.z3`, `oztest.z3`, `strictz.z3` (v3).
+- [x] **L'interpréteur porté S'EXÉCUTE sur Oric** : `program_start` atteint (prouvé par
+      marqueur 'Z' + halt, drapeau `ORIC_HALT_AT_START`). L'init efface l'écran (`s_init`).
+- [~] **Blocage** dans le code d'init, entre `deletable_screen_init_1` (cls OK) et
+      `deletable_init` (ligne ~1058) — indépendant du story (le marqueur '1' *avant*
+      `deletable_init` ne s'affiche pas). Bisection via drapeau `ORIC_DEBUG_INIT`.
+- [ ] **Bug identifié** : `lda #147 : jsr s_printchar` (147 = « clear screen » PETSCII)
+      non géré par `screenkernal-oric` (l'écrirait comme caractère). À traiter dans
+      `s_printchar` (codes de contrôle : 147=cls, etc.).
+- [ ] Localiser/corriger le blocage d'init (probable code REU/SID/scrollback mal gardé
+      pour Oric, ou routine appelant un placeholder). Puis atteindre l'exécution Z-code.
+
+**Voie A (jeux réels) :** porter le constructeur de disque (layout + piste config) pour l'Oric MFM — après la preuve d'exécution voie B.
 
 ### EPIC 5 — Intégration & jeu
 - [ ] Image `.dsk` Sedoric bootable contenant interpréteur + jeu
