@@ -1,6 +1,6 @@
-; [WIP] Test primitive o_chrout — BUG connu : pointeur ZP $f0-$f3 en conflit
-; avec l'usage ROM Oric (curseur systeme). Correctif prevu : reloger la ZP ou
-; utiliser du code auto-modifiant. Voir docs/PORTING_ORIC.md (EPIC 2).
+; [RESOLU] Ancien test curseur. Le bug n'etait PAS un conflit page-zero mais
+; un oubli de preservation du registre X (setline ecrasait X, index de chaine de
+; l'appelant). Voir asm/screenkernal-oric.asm pour la version correcte et testee.
 ; Germe de screenkernal-oric.asm. Affiche deux lignes via le curseur.
 	* = $9000
 col = $f0

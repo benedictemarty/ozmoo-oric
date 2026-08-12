@@ -3,6 +3,29 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.4.0] - 2026-08-12 — EPIC 2 : primitives écran écrites et testées
+### Ajouté
+- **`asm/screenkernal-oric.asm`** : couche d'affichage bas-niveau Oric —
+  `oric_init`, `oric_cls`, `oric_chrout` (CR + wrap 40 colonnes + scroll),
+  `oric_scroll`. **Register-safe** (X/Y préservés).
+- `test-oric/screenkernal_test.asm` : test du **scroll** — 30 retours-ligne puis
+  "SCROLL OK" ; sa présence en bas d'écran prouve le défilement. **PASS**.
+
+### Corrigé (diagnostic)
+- Le bug de curseur de la v0.3.0 n'était **pas** un conflit page-zéro mais un
+  **oubli de préservation du registre X** : `setline` écrasait X, utilisé par
+  l'appelant comme index de chaîne → relecture en boucle. Corrigé par
+  sauvegarde/restauration de X (et Y dans `oric_chrout`). Annotation du test
+  historique `screen_cursor.asm` mise à jour.
+
+### Discipline établie
+- Toute sous-routine 6502 doit **préserver les registres dont l'appelant dépend**.
+  Règle appliquée dans `screenkernal-oric.asm`, à tenir pour tout le portage.
+
+### Reste EPIC 2
+- Brancher `oric_chrout` sur le vrai chemin d'impression Ozmoo (`kernal_printchar`).
+- Attributs série (couleur/inverse via bit 7) dans le flux.
+
 ## [0.3.0] - 2026-08-12 — EPIC 2 (en cours) : pipeline de test + modèle écran validés
 ### Ajouté
 - `test-oric/run-test.sh` : harnais de test bout-en-bout (assemble un .asm avec

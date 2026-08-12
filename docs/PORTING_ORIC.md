@@ -83,16 +83,19 @@ cas (lecture de l'en-tête Z, offset $0E = base static memory).
       (`$BB80 + row*40`). Inverse vidéo = bit 7 du code caractère.
 - [x] Affichage multi-ligne fonctionnel en **adressage absolu** (`test-oric/screen_hello.asm`,
       `screen_twolines.asm` — tests PASS).
-- [~] Primitive `o_chrout` (curseur+wrap) via pointeur indirect : **BUG connu** —
-      la page zéro `$f0-$f3` entre en conflit avec l'usage ROM Oric (curseur système).
-      Correctif : reloger la ZP dans une zone libre Oric ou utiliser du code
-      auto-modifiant. (`test-oric/screen_cursor.asm`, WIP.)
-- [ ] `screenkernal-oric.asm` : `printchar`, curseur, scroll, attributs série (intégration Ozmoo).
-- [ ] "Hello" via le chemin d'impression **Ozmoo** (`kernal_printchar` réel), capturé.
+- [x] **`asm/screenkernal-oric.asm` : primitives écran écrites et testées** —
+      `oric_init`, `oric_cls`, `oric_chrout` (CR + wrap 40 col + scroll),
+      `oric_scroll`, register-safe (X/Y préservés). Test scroll **PASS**
+      (`test-oric/screenkernal_test.asm` : 30 CR → défilement → "SCROLL OK" en bas).
+- [ ] Brancher `oric_chrout` sur le chemin d'impression **Ozmoo** (`kernal_printchar` réel).
+- [ ] Attributs série (couleur/inverse via bit 7) dans le flux d'impression.
 
-**Leçon clé** : sur Oric, tout code utilisant la page zéro doit connaître la carte
-ZP réservée par la ROM/BASIC — c'est un prérequis avant d'écrire `screenkernal`/`disk`.
-Établir cette carte ZP libre est la première tâche de la suite d'EPIC 2.
+**Leçon clé (corrigée)** : le bug initial du curseur n'était **pas** un conflit
+page-zéro mais un **oubli de préservation de registre** — la sous-routine `setline`
+écrasait X, que l'appelant utilisait comme index de chaîne. Discipline à tenir dans
+tout le portage : **une sous-routine doit préserver les registres dont l'appelant
+dépend** (X/Y sauvegardés/restaurés). Le module `screenkernal-oric.asm` applique
+cette règle.
 
 ### Méthode de test (mise à jour)
 Chargement ML fiable = tape auto-run + déclenchement `CLOAD""` via `--type-keys`
