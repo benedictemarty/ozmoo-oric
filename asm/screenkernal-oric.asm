@@ -13,6 +13,11 @@
 SCR_BASE  = $bb80
 SCR_LAST  = SCR_BASE + 40 * 27        ; $bfb8 : debut derniere ligne
 
+!ifdef ORIC_LOG_CHARS {
+oric_log_idx = $5f00                  ; DEBUG : index buffer log s_printchar
+oric_log_buf = $6000                  ; DEBUG : buffer 256 octets (RAM libre)
+}
+
 ; --- convert_petscii_to_screencode : sur Oric, ASCII = code ecran (identite
 ;     pour l'ASCII imprimable ; raffinement casse/ZSCII ulterieur) ------------
 convert_petscii_to_screencode
@@ -21,6 +26,9 @@ convert_petscii_to_screencode
 ; --- s_init : dimensions ecran + curseur en haut + effacement ---------------
 s_init
 	lda #0
+!ifdef ORIC_LOG_CHARS {
+	sta oric_log_idx
+}
 	sta zp_screencolumn
 	sta zp_screenrow
 	sta s_scrolled_lines
@@ -67,6 +75,15 @@ s_erase_window
 s_printchar
 	stx s_stored_x
 	sty s_stored_y
+!ifdef ORIC_LOG_CHARS {
+	; DEBUG : journalise chaque octet recu (X libre, restaure en fin). Buffer
+	; 256 octets a $6000, index a $5f00 (init 0 dans s_init). Wrap = on lit page 1.
+	ldx oric_log_idx
+	sta oric_log_buf,x
+	inc oric_log_idx
+}
+	cmp #$93                  ; PETSCII clear-screen (147) -> efface + home
+	beq spc_clear
 	cmp #$0d
 	beq spc_newline
 	; caractere imprimable
@@ -92,6 +109,15 @@ spc_done
 	ldy s_stored_y
 	clc
 	rts
+
+; clear-screen ($93) : efface l'ecran, curseur en haut a gauche
+spc_clear
+	jsr s_cls_oric
+	lda #0
+	sta zp_screencolumn
+	sta zp_screenrow
+	jsr s_setline
+	jmp spc_done
 
 ; --- s_setline : zp_screenline = SCR_BASE + zp_screenrow*40 (preserve X) -----
 s_setline

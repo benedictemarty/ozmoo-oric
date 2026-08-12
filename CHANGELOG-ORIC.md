@@ -3,6 +3,33 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.13.0] - 2026-08-12 — EPIC 2/5 : rendu écran validé ($93), Z-code exécuté
+### Majeur
+- **La couche écran Oric affiche du vrai texte dynamique.** Sans drapeau debug,
+  l'init va jusqu'à la boucle Z-machine ; le **splash Ozmoo s'affiche proprement**,
+  centré, sur l'Oric émulé :
+  `OZMOO ORIC-0.1 / F1=DARKMODE / CTRL: D=RESET DEVICE# K=KEY REPEAT / 0-8=SCROLL SLOWNESS`
+  (premières lettres en inverse vidéo = bit 7, correct sur Oric). Preuve que
+  `s_printchar` gère le texte réel, l'inverse vidéo et le scroll.
+- **`s_printchar` gère le code contrôle PETSCII `$93` (147 = clear-screen + home)**
+  (`screenkernal-oric.asm`). Corrige les 2 caractères parasites en tête d'écran.
+
+### Outillage
+- Instrumentation debug `ORIC_LOG_CHARS` : journalise le flux d'octets reçus par
+  `s_printchar` dans un buffer RAM ($6000, index $5f00), lisible via `--dump-ram-at`.
+  A permis de décoder exactement ce qu'Ozmoo envoie à l'écran (OFF par défaut).
+- Script `test-oric/run_game.sh` : build voie B **sans** drapeau debug + run headless,
+  pour observer l'exécution du Z-code (story en argument, défaut `czech.z3`).
+
+### Découvert (prochain chantier — couche texte Z-machine)
+- Le Z-code **s'exécute** mais la sortie texte est **corrompue** : un caractère
+  (souvent erroné) suivi d'un newline, en boucle, **identique pour czech ET strictz**
+  (donc bug générique, pas story-spécifique). Ensuite le Z-code atteint un `@read`
+  et **attend une touche** (profil : 60 % dans `kernal_delay_1ms` + scan `read_key`).
+- Piste : décodage Z-string / table d'alphabet / couche word-wrap (streams/text.asm),
+  ou préparation de la story attendue par Ozmoo (make.rb massage le fichier ; ici on
+  concatène le `.z3` brut). À investiguer avec `ORIC_LOG_CHARS` + trace/gdb.
+
 ## [0.12.0] - 2026-08-12 — EPIC 3/5 : hang d'init CORRIGÉ, l'init s'exécute en entier
 ### Majeur
 - **Hang d'init v0.11.0 CORRIGÉ.** `kernal_getchar` et `kernal_delay_1ms`, jusque-là
