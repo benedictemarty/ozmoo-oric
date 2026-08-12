@@ -10,6 +10,12 @@
 ;   $0311 piste   $0312 secteur   $0313 data
 ;   $0314 controle : drive(b5-6) side(b4) ROMDIS(b1) EPROM(b7) INTENA(b0)
 ; Commandes WD1793 : $00 Restore, $10 Seek (cible = registre data), $80 Read Sector.
+;
+; NB : ce fichier est la version STANDALONE (testée via test-oric/*). La version
+; INTÉGRÉE au moteur est inline dans disk.asm sous `!ifdef TARGET_ORIC` (au point
+; `.have_set_device_track_sector`), car readblock y saute avec .track/.sector déjà
+; remplis et utilise `zp_mempos` (pointeur ZP) — `readblocks_mempos` d'Ozmoo étant
+; en mémoire absolue. Garder les deux logiques en phase.
 ; =============================================================================
 
 FDC_CMD    = $0310

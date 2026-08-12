@@ -328,6 +328,51 @@ read_track_sector
 	stx .sector
 	sty .device
 .have_set_device_track_sector
+!ifdef TARGET_ORIC {
+	; --- Lecture Microdisc/WD1793 : .track/.sector -> (readblocks_mempos) ------
+	; Registres $0310 cmd/statut, $0311 piste, $0312 secteur, $0313 data, $0314 ctrl.
+	lda readblocks_mempos     ; pointeur destination -> page zero (indirect)
+	sta zp_mempos
+	lda readblocks_mempos + 1
+	sta zp_mempos + 1
+	lda #$80
+	sta $0314              ; drive 0, side 0
+	lda #$00
+	sta $0310              ; Restore -> piste 0
+	jsr .oric_fdc_wait
+	lda .track
+	sta $0313              ; data = piste cible
+	lda #$10
+	sta $0310              ; Seek
+	jsr .oric_fdc_wait
+	lda .sector
+	sta $0312
+	lda #$80
+	sta $0310              ; Read Sector
+	ldy #0
+.oric_rl
+	lda $0310
+	and #$01              ; BUSY ?
+	beq .oric_rdone
+	lda $0310
+	and #$02              ; DRQ ?
+	beq .oric_rl
+	lda $0313
+	sta (zp_mempos),y
+	iny
+	bne .oric_rl
+.oric_rdone
+	rts
+.oric_fdc_wait
+	ldx #$40
+-	dex
+	bne -
+.oric_fw
+	lda $0310
+	and #$01
+	bne .oric_fw
+	rts
+} else {
 	lda .track
 	jsr convert_byte_to_two_digits
 	stx .uname_track
@@ -425,6 +470,7 @@ read_track_sector
 } else {
 	jmp close_io
 }
+} ; fin du else TARGET_ORIC (corps C64 de read_track_sector)
 
 .cname !text "#"
 cname_len = * - .cname

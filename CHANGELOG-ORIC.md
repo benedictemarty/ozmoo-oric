@@ -3,6 +3,23 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.8.0] - 2026-08-12 — EPIC 4 : lecture disque intégrée au moteur (VMEM)
+### Ajouté
+- `disk.asm` : lecture Microdisc/WD1793 **inline** sous `!ifdef TARGET_ORIC` au
+  point d'entrée `.have_set_device_track_sector` (là où `readblock` saute avec
+  `.track`/`.sector` remplis). Copie `readblocks_mempos` → `zp_mempos` (pointeur ZP)
+  puis lit 256 octets. Le corps C64 (canaux KERNAL/U1) est basculé en branche `else`.
+
+### Résultat
+- **Le moteur complet assemble (ACME exit 0)** avec le chemin réel
+  VMEM → `readblock` → lecture Microdisc. La pagination est branchée sur le disque.
+- La logique de lecture est identique à `disk-oric.asm`, déjà validée en isolation
+  (piste0/sect1 + seek piste2/sect3). Les deux copies documentées comme à garder en phase.
+
+### Reste EPIC 4
+- `disk_info` (géométrie) + placement story-file ; écriture secteur (save/restore) ;
+  **boot loader** (charger interpréteur+jeu depuis disque) → première exécution du moteur.
+
 ## [0.7.0] - 2026-08-12 — EPIC 4 : read_track_sector (WD1793) écrit et validé
 ### Ajouté
 - **`asm/disk-oric.asm`** : `read_track_sector` pour le Microdisc WD1793 — LA seule

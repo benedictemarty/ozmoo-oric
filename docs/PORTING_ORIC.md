@@ -143,10 +143,14 @@ ROMDIS b1, EPROM b7, INTENA b0). Commandes WD1793 : `$00` Restore, `$10` Seek
       contrat Ozmoo (A=piste, X=secteur, Y=device, dest=`readblocks_mempos`).
       Tests PASS : lecture piste0/secteur1, **et seek+lecture piste2/secteur3**
       (`test-oric/read_sector*.asm`, `rts_test.asm` — motif connu retrouvé à l'écran).
+- [x] **VMEM branché sur le disque Oric** : `disk.asm` intègre la lecture WD1793
+      inline sous `!ifdef TARGET_ORIC` (au point `.have_set_device_track_sector`,
+      lit `.track`/`.sector` → `zp_mempos`). **Moteur complet assemble (ACME exit 0)**
+      avec ce chemin VMEM → `readblock` → lecture Microdisc réelle.
 - [ ] Setup `disk_info` (géométrie disque Oric) + placement du story-file.
-- [ ] Brancher VMEM sur ce `read_track_sector` (source `disk-oric.asm` pour `TARGET_ORIC`).
 - [ ] Écriture secteur (commande `$A0`) → save / restore d'état.
-- [ ] Chargement/boot du moteur depuis disque (ou tape en attendant).
+- [ ] Boot loader : charger l'interpréteur + le story-file depuis disque et
+      initialiser `disk_info` → **première exécution réelle du moteur**.
 
 ### EPIC 5 — Intégration & jeu
 - [ ] Image `.dsk` Sedoric bootable contenant interpréteur + jeu
