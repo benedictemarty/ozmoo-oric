@@ -1,105 +1,143 @@
 ; =============================================================================
-; screenkernal-oric.asm — primitives d'affichage ORIC (portage Ozmoo)
+; screenkernal-oric.asm — couche ecran ORIC pour Ozmoo (remplace screenkernal.asm)
 ; -----------------------------------------------------------------------------
-; Couche bas-niveau ecran TEXT Oric ($BB80, 40x28, codes ASCII, attributs serie).
-; Register-safe : oric_chrout preserve X et Y (A = caractere en entree).
-; Modele valide empiriquement sur Phosphoric (voir docs/PORTING_ORIC.md, EPIC 2).
-;
-; NB : primitives autonomes et testees. Le branchement sur les points d'entree
-; attendus par Ozmoo (kernal_printchar, etc.) sera fait dans un incrementt ulterieur.
+; Fournit l'interface attendue par le moteur (screen.asm, text.asm, streams.asm) :
+;   s_init, s_plot, s_printchar, s_set_text_colour, s_reset_scrolled_lines,
+;   s_delete_cursor, s_erase_window, convert_petscii_to_screencode.
+; Ecran TEXT Oric $BB80, 40x28, codes ASCII, register-safe.
+; Les variables ZP (zp_screencolumn/row/line, s_colour, s_stored_x/y...) viennent
+; de constants-oric.asm. Version simplifiee (fenetre unique, sans attributs) :
+; premier objectif = afficher le texte du moteur. Fenetres/couleur : increments suivants.
 ; =============================================================================
 
 SCR_BASE  = $bb80
-SCR_COLS  = 40
-SCR_ROWS  = 28
-SCR_LAST  = SCR_BASE + SCR_COLS * (SCR_ROWS - 1)   ; $bfb8, debut derniere ligne
+SCR_LAST  = SCR_BASE + 40 * 27        ; $bfb8 : debut derniere ligne
 
-o_ptr     = $12          ; pointeur ecran indirect (2 octets ZP)
+; --- convert_petscii_to_screencode : sur Oric, ASCII = code ecran (identite
+;     pour l'ASCII imprimable ; raffinement casse/ZSCII ulterieur) ------------
+convert_petscii_to_screencode
+	rts
 
-; --- oric_init : curseur en haut-gauche, ecran efface -----------------------
-oric_init
+; --- s_init : dimensions ecran + curseur en haut + effacement ---------------
+s_init
 	lda #0
-	sta o_col
-	sta o_row
-	jsr oric_cls
-	jsr o_setline
+	sta zp_screencolumn
+	sta zp_screenrow
+	sta s_scrolled_lines
+	lda #$ff
+	sta s_current_screenpos_row       ; force recalcul
+	jsr s_cls_oric
+	jsr s_setline
 	rts
 
-; --- oric_cls : remplit l'ecran d'espaces (1120 octets) ---------------------
-oric_cls
-	lda #$20
-	ldx #0
-oc_l1	sta $bb80,x
-	sta $bc80,x
-	sta $bd80,x
-	sta $be80,x
-	inx
-	bne oc_l1
-	ldx #96
-oc_l2	sta $bf80-1,x      ; $bf80..$bfdf (96 octets)
-	dex
-	bne oc_l2
+; --- s_plot : C=0 -> place curseur (X=ligne, Y=colonne) ; C=1 -> lit curseur -
+s_plot
+	bcc sp_set
+	ldx zp_screenrow
+	ldy zp_screencolumn
+	rts
+sp_set
+	cpx s_screen_height
+	bcc +
+	ldx s_screen_height_minus_one
++	stx zp_screenrow
+	sty zp_screencolumn
+	jsr s_setline
 	rts
 
-; --- oric_chrout : imprime A ; gere CR (#13), wrap 40 col, scroll -----------
-; Register-safe : X et Y restaures en sortie.
-oric_chrout
-	stx o_savex
-	sty o_savey
-	cmp #13
-	beq o_newline
-	ldy o_col
-	sta (o_ptr),y
-	inc o_col
-	lda o_col
-	cmp #SCR_COLS
-	bcc o_exit
-o_newline
+; --- s_set_text_colour : A = couleur -> s_colour ----------------------------
+s_set_text_colour
+	sta s_colour
+	rts
+
+; --- s_reset_scrolled_lines -------------------------------------------------
+s_reset_scrolled_lines
+	pha
 	lda #0
-	sta o_col
-	inc o_row
-	lda o_row
-	cmp #SCR_ROWS
-	bcc o_reline
-	; depassement bas -> reste sur la derniere ligne et fait defiler
-	dec o_row
-	jsr oric_scroll
-o_reline
-	jsr o_setline
-o_exit
-	ldx o_savex
-	ldy o_savey
+	sta s_scrolled_lines
+	pla
 	rts
 
-; --- o_setline : o_ptr = SCR_BASE + o_row*40 (preserve X) -------------------
-o_setline
+; --- s_delete_cursor / s_erase_window : stubs (non appeles en pratique) ------
+s_delete_cursor
+s_erase_window
+	rts
+
+; --- s_printchar : CHROUT-like. A = caractere. Preserve X et Y. -------------
+s_printchar
+	stx s_stored_x
+	sty s_stored_y
+	cmp #$0d
+	beq spc_newline
+	; caractere imprimable
+	ldy zp_screencolumn
+	sta (zp_screenline),y
+	inc zp_screencolumn
+	lda zp_screencolumn
+	cmp s_screen_width
+	bcc spc_done
+spc_newline
+	lda #0
+	sta zp_screencolumn
+	inc zp_screenrow
+	lda zp_screenrow
+	cmp s_screen_height
+	bcc spc_reline
+	dec zp_screenrow                  ; reste sur la derniere ligne
+	jsr s_scroll_oric
+spc_reline
+	jsr s_setline
+spc_done
+	ldx s_stored_x
+	ldy s_stored_y
+	clc
+	rts
+
+; --- s_setline : zp_screenline = SCR_BASE + zp_screenrow*40 (preserve X) -----
+s_setline
 	txa
 	pha
 	lda #<SCR_BASE
-	sta o_ptr
+	sta zp_screenline
 	lda #>SCR_BASE
-	sta o_ptr+1
-	ldx o_row
-	beq sl_ok
-sl_add
+	sta zp_screenline + 1
+	ldx zp_screenrow
+	beq ssl_ok
+ssl_add
 	clc
-	lda o_ptr
-	adc #SCR_COLS
-	sta o_ptr
-	bcc sl_nc
-	inc o_ptr+1
-sl_nc
+	lda zp_screenline
+	adc #40
+	sta zp_screenline
+	bcc ssl_nc
+	inc zp_screenline + 1
+ssl_nc
 	dex
-	bne sl_add
-sl_ok
+	bne ssl_add
+ssl_ok
 	pla
 	tax
 	rts
 
-; --- oric_scroll : remonte les lignes 1..27 vers 0..26, efface la ligne 27 --
-oric_scroll
+; --- s_cls_oric : ecran rempli d'espaces (1120 octets) ----------------------
+s_cls_oric
+	lda #$20
 	ldx #0
-os_l1	lda $bba8,x        ; ligne1.. -> ligne0..  (1024 premiers octets)
+scl_1	sta $bb80,x
+	sta $bc80,x
+	sta $bd80,x
+	sta $be80,x
+	inx
+	bne scl_1
+	ldx #96
+scl_2	sta $bf80-1,x
+	dex
+	bne scl_2
+	rts
+
+; --- s_scroll_oric : remonte lignes 1..27 -> 0..26, efface ligne 27 ---------
+s_scroll_oric
+	ldx #0
+sso_1	lda $bba8,x
 	sta $bb80,x
 	lda $bba8+256,x
 	sta $bb80+256,x
@@ -108,22 +146,58 @@ os_l1	lda $bba8,x        ; ligne1.. -> ligne0..  (1024 premiers octets)
 	lda $bba8+768,x
 	sta $bb80+768,x
 	inx
-	bne os_l1
+	bne sso_1
 	ldx #0
-os_l2	lda $bba8+1024,x   ; 56 octets restants ($bfa8..$bfdf -> $bf80..$bfb7)
+sso_2	lda $bba8+1024,x
 	sta $bb80+1024,x
 	inx
 	cpx #56
-	bne os_l2
-	lda #$20            ; efface la derniere ligne ($bfb8..$bfdf, 40 octets)
-	ldx #SCR_COLS
-os_l3	sta SCR_LAST-1,x
+	bne sso_2
+	lda #$20
+	ldx #40
+sso_3	sta SCR_LAST-1,x
 	dex
-	bne os_l3
+	bne sso_3
 	rts
 
-; --- variables d'etat (memoire absolue, hors page zero) ---------------------
-o_col	!byte 0
-o_row	!byte 0
-o_savex	!byte 0
-o_savey	!byte 0
+; --- routines de support (stubs pour premier affichage ; a etoffer) ---------
+; Curseur materiel : non necessaire pour le premier affichage.
+update_cursor
+turn_on_cursor
+turn_off_cursor
+toggle_darkmode
+	rts
+
+; Efface la ligne courante (espaces sur la ligne du curseur).
+s_erase_line
+	txa
+	pha
+	tya
+	pha
+	jsr s_setline
+	lda #$20
+	ldy #0
+sel_l	sta (zp_screenline),y
+	iny
+	cpy s_screen_width
+	bne sel_l
+	pla
+	tay
+	pla
+	tax
+	rts
+
+; --- variables couleur / mode (stubs) ---------------------------------------
+darkmode      !byte 0
+fgcol         !byte 1        ; encre par defaut
+statuslinecol !byte 0
+zcolours      !byte 0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7  ; table z-couleur -> Oric (a affiner)
+
+; --- variables d'etat ecran (definies ici, comme dans screenkernal.asm) ------
+s_screen_width            !byte 40
+s_screen_width_minus_one  !byte 39
+s_screen_width_plus_one   !byte 41
+s_screen_height           !byte 28
+s_screen_height_minus_one !byte 27
+s_screen_size             !byte <1120, >1120
+s_scrolled_lines          !byte 0

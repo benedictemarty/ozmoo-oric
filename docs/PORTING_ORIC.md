@@ -87,8 +87,18 @@ cas (lecture de l'en-tête Z, offset $0E = base static memory).
       `oric_init`, `oric_cls`, `oric_chrout` (CR + wrap 40 col + scroll),
       `oric_scroll`, register-safe (X/Y préservés). Test scroll **PASS**
       (`test-oric/screenkernal_test.asm` : 30 CR → défilement → "SCROLL OK" en bas).
-- [ ] Brancher `oric_chrout` sur le chemin d'impression **Ozmoo** (`kernal_printchar` réel).
+- [x] **Couche écran au contrat Ozmoo** dans `screenkernal-oric.asm` : `s_init`,
+      `s_printchar` (71 appelants), `s_plot`, `s_set_text_colour`,
+      `s_reset_scrolled_lines`, `convert_petscii_to_screencode`, `s_erase_line`,
+      stubs curseur/darkmode. Variables d'état écran fournies.
+- [x] **`s_printchar` testé unitairement** (comme l'appelle le moteur) — PASS
+      (`test-oric/s_printchar_test.asm` : "HELLO VIA S_PRINTCHAR" + 2e ligne).
+- [x] **Intégré au build** : `ozmoo.asm` source `screenkernal-oric.asm` pour
+      `TARGET_ORIC` ; le **moteur complet assemble** (ACME exit 0).
 - [ ] Attributs série (couleur/inverse via bit 7) dans le flux d'impression.
+- [ ] Fenêtres / status-line (V3) — actuellement fenêtre unique.
+- [ ] Preuve « le moteur imprime » de bout en bout : **gâtée par le chargement**
+      du story-file (EPIC 4). Le contrat écran, lui, est prouvé isolément.
 
 **Leçon clé (corrigée)** : le bug initial du curseur n'était **pas** un conflit
 page-zéro mais un **oubli de préservation de registre** — la sous-routine `setline`

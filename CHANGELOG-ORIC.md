@@ -3,6 +3,27 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.5.0] - 2026-08-12 — EPIC 2 : couche écran intégrée au moteur Ozmoo
+### Ajouté
+- `screenkernal-oric.asm` réécrit pour exposer l'**interface réelle d'Ozmoo** :
+  `s_init`, `s_printchar` (71 appelants dans le moteur), `s_plot`,
+  `s_set_text_colour`, `s_reset_scrolled_lines`, `convert_petscii_to_screencode`,
+  `s_erase_line`, + stubs curseur/darkmode et variables d'état écran.
+- `test-oric/s_printchar_test.asm` : **test unitaire** appelant `s_init`/`s_printchar`
+  comme le moteur — **PASS** ("HELLO VIA S_PRINTCHAR" + "SECOND LINE").
+- `ozmoo.asm` : source `screenkernal-oric.asm` au lieu de `screenkernal.asm` pour
+  `TARGET_ORIC`.
+
+### Résultat
+- **Le moteur complet assemble avec la couche écran Oric** (ACME exit 0) — 9 stubs
+  de support (curseur/darkmode/couleur) ajoutés pour satisfaire `screen.asm`/`text.asm`.
+- Tests écran PASS : `s_printchar_test` (contrat Ozmoo) et `screenkernal_test` (scroll).
+- Harnais `run-test.sh` rendu indépendant du CWD (résolution des `!source`).
+
+### Reste EPIC 2 (non bloquant)
+- Attributs série (couleur/inverse bit 7), fenêtres/status-line.
+- Preuve « moteur imprime » de bout en bout : dépend du chargement story-file (EPIC 4).
+
 ## [0.4.0] - 2026-08-12 — EPIC 2 : primitives écran écrites et testées
 ### Ajouté
 - **`asm/screenkernal-oric.asm`** : couche d'affichage bas-niveau Oric —

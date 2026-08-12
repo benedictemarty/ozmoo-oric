@@ -17,7 +17,8 @@ ASM="$1"; EXEC="$2"; EXPECT="$3"
 base="${ASM%.asm}"
 bin="$HERE/$base.bin"; tap="$HERE/$base.tap"; out="/tmp/$base.screen.txt"
 
-acme --cpu 6502 -f plain -o "$bin" "$HERE/$ASM" || { echo "FAIL: assemblage"; exit 1; }
+cd "$HERE"   # pour que les !source "../asm/..." se resolvent
+acme --cpu 6502 -f plain -o "$bin" "$ASM" || { echo "FAIL: assemblage"; exit 1; }
 "$BIN2TAP" "$bin" --start "0x$EXEC" --exec "0x$EXEC" -o "$tap" --name TEST >/dev/null || {
 	echo "FAIL: bin2tap"; exit 1; }
 

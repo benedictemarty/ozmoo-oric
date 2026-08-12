@@ -1158,7 +1158,11 @@ statmem_reu_banks !byte 0
 !ifdef SCROLLBACK {
 !source "scrollback.asm"
 }
+!ifdef TARGET_ORIC {
+!source "screenkernal-oric.asm"
+} else {
 !source "screenkernal.asm"
+}
 !source "screen.asm"
 !source "streams.asm" ; Must come before "text.asm"
 !source "disk.asm"
