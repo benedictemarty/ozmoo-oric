@@ -3,6 +3,27 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.15.0] - 2026-08-12 — JALON : czech PASSE (349/0), interpréteur INTERACTIF
+### Majeur — VALIDATION DE CONFORMITÉ
+- **L'interpréteur passe la suite de conformité Z-machine complète sur Oric.**
+  czech.z3 (Comprehensive Z-machine Emulation CHecker) tourne intégralement et rend
+  son verdict : **`PERFORMED 368 TESTS. PASSED: 349, FAILED: 0` — `DIDN'T CRASH: HOORAY!`**
+  Opcodes, décodage Z-string, table d'objets/propriétés, abbréviations, print/paddr,
+  ligne de statut V3 (`SC:368 MV:349`) : tout est correct.
+- **L'interpréteur est INTERACTIF** : le clavier Oric (`read_key` via `kernal_getchar`,
+  déjà branché dans `getchar_and_maybe_toggle_darkmode`) fait avancer czech à chaque
+  pause `@read_char`. La saisie fonctionne bout-en-bout.
+
+### Tests
+- `test-oric/czech_test.sh` : build + run headless avec touches périodiques (passe les
+  pauses `@read_char`) + assertion `PASSED: 349, FAILED: 0`. **PASS.** Test de
+  non-régression « en or » couvrant le cœur interpréteur entier.
+
+### Reste (polish)
+- Casse : texte tout en MAJUSCULES (mapping PETSCII→Oric) ; inverse-vidéo `$12`/`$92`.
+- Saisie ligne `@sread` (écho + Enter + parsing) à valider sur un vrai jeu ;
+  anti-rebond (`read_key` non débouncé — touche maintenue = répétition).
+
 ## [0.14.0] - 2026-08-12 — EPIC 2/5 : PREMIER TEXTE DE STORY LISIBLE SUR ORIC
 ### Majeur — JALON
 - **Une story Z-machine s'affiche réellement et lisiblement sur Oric.** czech.z3
