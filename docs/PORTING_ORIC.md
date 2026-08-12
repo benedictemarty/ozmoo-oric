@@ -111,8 +111,16 @@ cette règle.
 Chargement ML fiable = tape auto-run + déclenchement `CLOAD""` via `--type-keys`
 (le `-f` seul n'amorce pas la lecture). Cf. `test-oric/run-test.sh`.
 
-### EPIC 3 — Clavier
-- [ ] `readchar`/`getchar` via lecture clavier Oric (VIA/AY colonnes)
+### EPIC 3 — Clavier *(cœur validé)*
+- [x] **`asm/keyboard-oric.asm` : scan matrice + `read_key` → ASCII, VALIDÉ.**
+      Mécanisme : colonne via VIA ORB `$0300` bits0-2, ligne via masque PSG R14
+      (`~(1<<row)`), détection sur PB3 ; handshake PSG via PCR `$030C`
+      (latch=$EE, write=$EC, inactif=$CC) ; prérequis PSG R7 bit6=1 (port A entrée).
+      Tests PASS : `'1'`→`'1'`, `'0'`→`'0'`, espace→espace (via `--type-keys`).
+- [ ] Compléter la table `(col*8+row)→ASCII` (lettres a-z, shift, touches spéciales
+      Return/Del/flèches). Table partielle extraite de `keyboard.c` (mécanisme prouvé).
+- [ ] Brancher `kernal_readchar`/`kernal_getchar` sur `read_key` (`read_key`=non bloquant ;
+      `readchar`/CHRIN = version bloquante avec attente).
 
 ### EPIC 4 — Disque Sedoric (le cœur) *(kickoff)*
 **Analyse du contrat Ozmoo (fait) :** la seule routine réellement machine-spécifique

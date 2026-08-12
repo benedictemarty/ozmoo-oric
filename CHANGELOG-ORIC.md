@@ -3,6 +3,27 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.9.0] - 2026-08-12 — EPIC 3 : lecture clavier (scan matrice) validée
+### Ajouté
+- **`asm/keyboard-oric.asm`** : scan de la matrice clavier Oric + `read_key` (→ ASCII).
+  Colonne via VIA ORB `$0300` b0-2, ligne via masque PSG R14, détection PB3 ;
+  handshake PSG par PCR `$030C` ($EE/$EC/$CC) ; R7 bit6=1 (port A entrée).
+  `kay_write` préserve A/X/Y. Table `(col*8+row)→ASCII` (partielle) intégrée.
+- `test-oric/kbd_scan.asm` (scan brut → col/row) et `test-oric/kbd_read.asm`
+  (`read_key` → ASCII).
+
+### Validé (sur Phosphoric, via `--type-keys`)
+- Scan brut : `'1'` détecté en col0/row5 → "K05" (conforme à `keyboard.c`).
+- `read_key` : `'1'`→`'1'`, `'0'`→`'0'`, espace→espace.
+
+### Diagnostic
+- Bug initial : `ay_write` écrasait Y (compteur de ligne). Corrigé : sauvegarde
+  A/X/Y (même discipline registres qu'en EPIC 2).
+
+### Reste EPIC 3
+- Compléter la table ASCII (lettres/shift/touches spéciales) ; brancher
+  `kernal_readchar`/`getchar` sur `read_key` (+ variante bloquante).
+
 ## [0.8.0] - 2026-08-12 — EPIC 4 : lecture disque intégrée au moteur (VMEM)
 ### Ajouté
 - `disk.asm` : lecture Microdisc/WD1793 **inline** sous `!ifdef TARGET_ORIC` au
