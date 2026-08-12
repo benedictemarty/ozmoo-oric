@@ -3,6 +3,18 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.17.0] - 2026-08-12 — EPIC 2 : inverse-vidéo (ligne de statut)
+### Amélioré
+- **`s_printchar` gère les codes reverse `$12` (on) / `$92` (off)** et applique
+  `ora s_reverse` à chaque caractère imprimable (bit 7 = inverse vidéo sur Oric),
+  comme `screenkernal.asm` sur C64. Avant, ces codes s'imprimaient en caractères
+  parasites.
+- **La ligne de statut V3 s'affiche en vidéo inverse pleine largeur** : dump RAM →
+  row 0 = 40 octets bit 7 (`String ... SC:368 MV:349`). Rendu conforme aux jeux V3.
+
+### Tests
+- czech **toujours PASS** (349/0). `init_e2e` PASS. Builds VMEM/non-VMEM exit 0.
+
 ## [0.16.0] - 2026-08-12 — EPIC 2 : casse mixte correcte à l'écran
 ### Amélioré
 - **Le texte s'affiche en casse mixte correcte** (minuscules + majuscules) au lieu de

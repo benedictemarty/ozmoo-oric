@@ -93,7 +93,12 @@ s_printchar
 	beq spc_clear
 	cmp #$0d
 	beq spc_newline
+	cmp #$12                  ; reverse on (18)
+	beq spc_rev_on
+	cmp #$92                  ; reverse off (146)
+	beq spc_rev_off
 	; caractere imprimable
+	ora s_reverse             ; bit 7 = inverse video sur Oric
 	ldy zp_screencolumn
 	sta (zp_screenline),y
 	inc zp_screencolumn
@@ -116,6 +121,16 @@ spc_done
 	ldy s_stored_y
 	clc
 	rts
+
+; reverse on/off ($12/$92) : bit 7 des codes ecran = inverse video sur Oric
+spc_rev_on
+	lda #$80
+	sta s_reverse
+	jmp spc_done
+spc_rev_off
+	lda #0
+	sta s_reverse
+	jmp spc_done
 
 ; clear-screen ($93) : efface l'ecran, curseur en haut a gauche
 spc_clear
