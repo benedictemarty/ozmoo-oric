@@ -3,6 +3,26 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.2.0] - 2026-08-12 — EPIC 1 terminé : le moteur assemble pour l'Oric
+### Ajouté
+- `build-oric.sh` : script de build ACME dédié (indépendant de make.rb / exomizer
+  / vice), génère les fichiers requis (`temp/file-name.asm`, `temp/splashlines.asm`)
+  et assemble avec les defines nécessaires (`TARGET_ORIC`, `Z3`, `VMEM`,
+  `CACHE_PAGES`, `STACK_PAGES`, `CONF_TRK`, versions).
+- Placeholders de portage complétant `constants-oric.asm` (registres écran VIC/TED
+  inexistants, jeu complet des routines KERNAL, variables d'état écran, buffers clavier).
+
+### Résultat
+- **Assemblage complet : ACME exit 0** → binaire `temp/ozmoo-oric.bin` (12 544 o).
+  Le moteur Z-machine assemble pour la cible Oric. Le binaire ne s'exécute pas
+  encore (routines I/O = placeholders `>>> PORT`).
+- Surface de portage entièrement cartographiée : **43 coutures** documentées,
+  regroupées en écran/clavier/disque Sedoric/timer/banking (cf. `docs/PORTING_ORIC.md`).
+
+### Méthode
+- Convergence itérative de l'assemblage (3 passes) : 10 → 10 → 4 → 0 symboles indéfinis,
+  chaque lot révélant la couche I/O suivante.
+
 ## [0.1.0] - 2026-08-12 — EPIC 1 : squelette de cible
 ### Ajouté
 - Branche `oric-port` (identité git bmarty <bmarty@mailo.com>).

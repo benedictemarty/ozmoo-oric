@@ -120,6 +120,53 @@ vmap_buffer_start     = $0334 ; >>> PORT TODO
 vmap_buffer_end       = $0400 ; >>> PORT TODO
 CURRENT_DEVICE        = $00   ; >>> PORT : notion de "device" Sedoric
 
+; --- Symboles complementaires (placeholders de portage) ----------------------
+; Normalement definis par-cible dans constants.asm. Valeurs Oric provisoires ;
+; permettent a l'assemblage d'aboutir. Comportement runtime a implementer.
+COLOUR_ADDRESS_DIFF   = 0        ; pas de colour-map sur Oric
+zp_colourline         = $f3      ; 2 bytes ; >>> PORT : pointeur colour-map (inutilise Oric)
+window_start_row      = $2a      ; 4 bytes
+s_reverse             = $b3      ; etat video inverse (attribut serie Oric)
+keyboard_buff_len     = $c6      ; >>> PORT : longueur buffer clavier Oric
+keyboard_buff         = $0277    ; >>> PORT : buffer clavier Oric
+key_repeat            = $028a    ; >>> PORT : gestion repetition touche
+charset_switchable    = $0291    ; >>> PORT : bascule jeu de caracteres
+kernal_delay_1ms      = $0000    ; >>> PORT TODO (temporisation 1ms via VIA)
+
+; Registres "raster" du VIC/TED : inexistants sur l'ULA Oric.
+; Placeholders pour l'assemblage ; la synchro scroll passera par le VIA 6522.
+reg_rasterline_highbit = $0000   ; >>> PORT TODO (synchro via timer VIA)
+reg_rasterline         = $0000   ; >>> PORT TODO
+rasterline_for_scroll  = 0       ; >>> PORT TODO
+
+; Registres couleur VIC/TED : inexistants (Oric = attributs serie). Placeholders.
+COLOUR_ADDRESS        = SCREEN_ADDRESS ; coherent avec COLOUR_ADDRESS_DIFF=0
+reg_bordercolour      = $0000    ; >>> PORT TODO (bordure via attribut Oric)
+reg_backgroundcolour  = $0000    ; >>> PORT TODO (papier via attribut Oric)
+
+; Variables d'etat ecran (placeholders) :
+num_rows              = $b7      ; >>> PORT : nb lignes fenetre courante
+is_buffered_window    = $ab      ; >>> PORT : fenetre bufferisee ?
+
+; --- Points d'entree KERNAL references par le moteur (placeholders) ----------
+; TOUS a remplacer par des routines Oric/Sedoric (screenkernal-oric / disk-oric).
+kernal_reset          = basic_reset ; >>> PORT TODO (cold reset Oric)
+kernal_readst         = $0000       ; >>> PORT TODO (statut I/O)
+kernal_setlfs         = $0000       ; >>> PORT TODO
+kernal_setnam         = $0000       ; >>> PORT TODO
+kernal_open           = $0000       ; >>> PORT TODO
+kernal_close          = $0000       ; >>> PORT TODO
+kernal_chkin          = $0000       ; >>> PORT TODO
+kernal_chkout         = $0000       ; >>> PORT TODO
+kernal_clrchn         = $0000       ; >>> PORT TODO
+kernal_readchar       = $0000       ; >>> PORT TODO (lecture clavier Oric)
+kernal_printchar      = $0000       ; >>> PORT TODO (affichage caractere Oric)
+kernal_load           = $0000       ; >>> PORT TODO (chargement Sedoric)
+kernal_save           = $0000       ; >>> PORT TODO (sauvegarde Sedoric)
+kernal_settime        = $0000       ; >>> PORT TODO (VIA 6522)
+kernal_readtime       = $0000       ; >>> PORT TODO (VIA 6522)
+kernal_getchar        = $0000       ; >>> PORT TODO
+
 ; =============================================================================
 ; POINTS D'ENTREE SYSTEME — a reimplementer en Oric/Sedoric
 ; -----------------------------------------------------------------------------

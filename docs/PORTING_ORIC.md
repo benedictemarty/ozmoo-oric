@@ -54,12 +54,25 @@ cas (lecture de l'en-tête Z, offset $0E = base static memory).
 
 ## Backlog (épics → stories)
 
-### EPIC 1 — Squelette de cible *(en cours)*
+### EPIC 1 — Squelette de cible ✅ *(terminé)*
 - [x] Branche git `oric-port`, identité bmarty
 - [x] Bloc `TARGET_ORIC` dans `ozmoo.asm` + branche d'inclusion constantes
 - [x] `constants-oric.asm` (carte machine + zero-page moteur + jalons KERNAL)
-- [ ] Cible Oric dans `make.rb` (ou script de build ACME dédié)
-- [ ] Première passe d'assemblage → liste exhaustive des symboles indéfinis
+- [x] Script de build ACME dédié (`build-oric.sh`, indépendant de make.rb/exomizer/vice)
+- [x] **Assemblage complet (ACME exit 0)** → binaire `temp/ozmoo-oric.bin` (12,5 Ko)
+- [x] Surface de portage entièrement cartographiée : **43 coutures `>>> PORT`** dans
+      `constants-oric.asm` (placeholders documentés). Le moteur Z assemble ; il ne
+      *tourne* pas encore (routines I/O = placeholders).
+
+**Bilan seams à implémenter (regroupés) :**
+- **Écran/attributs** : `COLOUR_ADDRESS(_DIFF)`, `zp_colourline`, `reg_border/backgroundcolour`,
+  `reg_rasterline*`, `s_reverse`, `num_rows`, `is_buffered_window`, `charset_switchable`.
+- **Clavier** : `kernal_readchar/getchar`, `keyboard_buff(_len)`, `key_repeat`.
+- **Disque Sedoric** : `kernal_setlfs/setnam/open/close/chkin/chkout/clrchn/load/save/readst`,
+  `CURRENT_DEVICE`, buffers VMEM (`directory_buffer`, `vmap_buffer_*`).
+- **Temps/timer** : `kernal_settime/readtime`, `kernal_delay_1ms` (VIA 6522).
+- **Mémoire/banking** : `basic_reset`, `kernal_reset`, `first_banked_memory_page`,
+  reloger `print_buffer`/`memory_buffer` hors pile/zones réservées.
 
 ### EPIC 2 — Sortie écran (afficher du texte)
 - [ ] `screenkernal-oric.asm` : `printchar`, gestion curseur, scroll, attributs série
