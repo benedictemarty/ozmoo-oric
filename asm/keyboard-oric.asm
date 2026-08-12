@@ -27,11 +27,24 @@ kbd_init
 	jsr kay_write
 	rts
 
-; --- kernal_getchar : GETIN Oric (non bloquant) -----------------------------
+; --- kernal_getchar : GETIN Oric (non bloquant) + anti-rebond ---------------
 ; Contrat KERNAL C64 ($FFE4) : A = ASCII de la touche, 0 si aucune. read_key
-; respecte deja ce contrat. Registres clobbes (comme GETIN) : A,X,Y.
+; fait un scan LIVE de la matrice (pas de buffer KERNAL) -> une touche maintenue
+; serait renvoyee a chaque appel (des milliers/s dans la boucle de saisie).
+; Anti-rebond : ne renvoie une touche que si elle DIFFERE de la precedente
+; (nouvelle frappe ou relachement intermediaire) ; une touche tenue -> 0.
+; Registres clobbes (comme GETIN) : A,X,Y.
 kernal_getchar
-	jmp read_key
+	jsr read_key
+	cmp kbd_last_key
+	beq .held             ; identique a la precedente -> supprimee (tenue / 0)
+	sta kbd_last_key      ; nouvelle touche (ou relachement) -> memorise + renvoie
+	rts
+.held
+	lda #0
+	rts
+
+kbd_last_key !byte 0
 
 ; --- kernal_delay_1ms : temporisation ~1 ms (Oric ~1 MHz) --------------------
 ; PRESERVE A,X,Y : wait_yx_ms (disk.asm) boucle avec X/Y comme compteurs autour

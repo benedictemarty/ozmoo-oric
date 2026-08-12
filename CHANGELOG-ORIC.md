@@ -3,6 +3,20 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.18.0] - 2026-08-12 — EPIC 3 : anti-rebond clavier
+### Amélioré
+- **`kernal_getchar` : anti-rebond.** `read_key` fait un scan LIVE de la matrice
+  (pas de buffer KERNAL) → une touche maintenue serait renvoyée à chaque appel
+  (des milliers/s dans la boucle de saisie `read_text`). Désormais `kernal_getchar`
+  ne renvoie une touche que si elle diffère de la précédente (`kbd_last_key`) :
+  nouvelle frappe ou relâchement intermédiaire ; touche tenue → 0. Une frappe
+  physique = un caractère, comme GETIN sur C64.
+
+### Tests
+- czech **toujours PASS** (349/0). `init_e2e` PASS. Builds VMEM/non-VMEM exit 0.
+- Note : la saisie ligne `@sread` (double-lettres, écho, Enter) reste à valider sur
+  un vrai jeu — voir voie A (VMEM) pour charger de tels jeux.
+
 ## [0.17.0] - 2026-08-12 — EPIC 2 : inverse-vidéo (ligne de statut)
 ### Amélioré
 - **`s_printchar` gère les codes reverse `$12` (on) / `$92` (off)** et applique
