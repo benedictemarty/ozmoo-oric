@@ -3,6 +3,24 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.16.0] - 2026-08-12 — EPIC 2 : casse mixte correcte à l'écran
+### Amélioré
+- **Le texte s'affiche en casse mixte correcte** (minuscules + majuscules) au lieu de
+  tout en capitales. czech : `Test numbers appear in [brackets].`,
+  `print works or you wouldn't be seeing this.`, `Jumps`, `Variables`, `Arithmetic ops`...
+- Cause : `translate_zscii_to_petscii` (`streams.asm`) appliquait la convention casse
+  **PETSCII C64** (minuscule→$41-$5A, majuscule→$C1-$DA = inverse-vidéo sur Oric).
+  Sur Oric l'écran est en **ASCII standard** → ZSCII imprimable = ASCII. Fix : garde
+  `!ifndef TARGET_ORIC` autour de la conversion de casse (identité pour les lettres,
+  la vérif de légalité renvoie le caractère inchangé). Aucun impact C64.
+- Saisie (`translate_petscii_to_zscii`) : inchangée — `read_key` renvoie de l'ASCII
+  minuscule pour une frappe normale, qui passe tel quel en ZSCII minuscule (correct
+  pour les dictionnaires de jeu).
+
+### Tests
+- czech **toujours PASS** (349/0) après le fix casse (`czech_test.sh` : assertion rendue
+  insensible à la casse). `init_e2e` PASS. Builds VMEM/non-VMEM exit 0.
+
 ## [0.15.0] - 2026-08-12 — JALON : czech PASSE (349/0), interpréteur INTERACTIF
 ### Majeur — VALIDATION DE CONFORMITÉ
 - **L'interpréteur passe la suite de conformité Z-machine complète sur Oric.**

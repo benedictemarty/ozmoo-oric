@@ -51,7 +51,7 @@ eval "\"$EMU\" -r \"$ROM\" -f -n -t \"$OUT/image.tap\" \
 echo "=== VERDICT czech ==="
 grep -iE 'PERFORMED|PASSED|HOORAY' "$OUT/czech.txt" 2>/dev/null || true
 
-if grep -q 'PASSED: 349, FAILED: 0' "$OUT/czech.txt" 2>/dev/null; then
+if grep -qi 'PASSED: 349, FAILED: 0' "$OUT/czech.txt" 2>/dev/null; then
   echo "PASS: czech.z3 conforme (349 tests reussis, 0 echec) sur Oric"
   exit 0
 else

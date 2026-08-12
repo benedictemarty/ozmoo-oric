@@ -853,6 +853,10 @@ translate_zscii_to_petscii
 }
 ; .case_conversion
 	ldy .streams_tmp + 1
+!ifndef TARGET_ORIC {
+	; C64/PETSCII : minuscule $61-$7A -> $41-$5A, majuscule $41-$5A -> $C1-$DA
+	; (charset PETSCII decale). Sur ORIC l'ecran est en ASCII standard : ZSCII
+	; imprimable = ASCII, donc on SAUTE la conversion (identite via .is_legal).
 	cmp #$61
 	bcc .not_lower_case
 	cmp #$7b
@@ -870,6 +874,7 @@ translate_zscii_to_petscii
 	ora #$80
 ;	clc ; Already clear
 	rts
+}
 .not_lower_or_upper_case
 	; Check if legal
 	cmp #13
