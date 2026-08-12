@@ -3,6 +3,24 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.6.0] - 2026-08-12 — EPIC 4 (kickoff) : analyse contrat disque + socle validé
+### Analysé
+- **`read_track_sector`** identifiée comme la SEULE routine disque machine-spécifique
+  (A=piste, X=secteur, Y=device, dest=`readblocks_mempos`). `readblock`/`readblocks`
+  (bloc→piste/secteur via `disk_info`), multi-disque et VMEM sont portables.
+
+### Validé
+- **Sedoric DOS V4.0 boote** depuis `.dsk` dans Phosphoric (Microdisc, ~11M cycles).
+- Émulateur : WD1793 complet + Sedoric ; disques et outils de build présents.
+
+### Gate identifié
+- `sedoric_inject.py` attend un `.dsk` brut ; `SEDO40u.DSK` est en MFM → conversion
+  `dsk_raw2mfm.py` à intégrer pour injecter/lancer un ML depuis disque.
+
+### Backlog EPIC 4
+- Build `.dsk` (raw↔MFM) + lancer ML ; `read_track_sector` WD1793 ; `disk_info` ;
+  brancher VMEM ; écriture secteur (save/restore).
+
 ## [0.5.0] - 2026-08-12 — EPIC 2 : couche écran intégrée au moteur Ozmoo
 ### Ajouté
 - `screenkernal-oric.asm` réécrit pour exposer l'**interface réelle d'Ozmoo** :

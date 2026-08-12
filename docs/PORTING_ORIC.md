@@ -114,10 +114,29 @@ Chargement ML fiable = tape auto-run + déclenchement `CLOAD""` via `--type-keys
 ### EPIC 3 — Clavier
 - [ ] `readchar`/`getchar` via lecture clavier Oric (VIA/AY colonnes)
 
-### EPIC 4 — Disque Sedoric (le cœur)
-- [ ] Lecture bloc pour VMEM (pagination high memory)
-- [ ] Chargement du story-file / boot
-- [ ] Save / restore d'état
+### EPIC 4 — Disque Sedoric (le cœur) *(kickoff)*
+**Analyse du contrat Ozmoo (fait) :** la seule routine réellement machine-spécifique
+est **`read_track_sector`** (`disk.asm`) :
+- entrée : `A`=piste, `X`=secteur, `Y`=device, mot en `readblocks_mempos` = adresse dest.
+- tout le reste est **portable** : `readblock`/`readblocks` (conversion bloc→piste/secteur
+  via la table `disk_info`), multi-disque, et la logique VMEM (`vmem.asm` appelle
+  `readblock`/`readblocks`). Save/restore (`do_save`/`do_restore`) réutilise les mêmes primitives + écriture.
+- Sur C64, `read_track_sector` passe par le KERNAL/1541 (canaux nommés + U1). Sur Oric,
+  à réécrire pour le **WD1793 Microdisc** (registres command/track/sector/data mappés en I/O).
+
+**Socle validé :**
+- [x] **Sedoric DOS V4.0 boote** depuis un `.dsk` dans Phosphoric (`--disk-rom microdis.rom
+      -d SEDO40u.DSK`), boot ~11M cycles. Le chemin de boot disque fonctionne.
+- [x] Émulateur = WD1793 complet (struct `fdc` : command/track/sector/data) + Sedoric.
+- [~] **Gate outillage** : `sedoric_inject.py` attend un `.dsk` **brut** ; `SEDO40u.DSK`
+      est en **MFM** → utiliser `dsk_raw2mfm.py` (conversion raw↔MFM) pour injecter un ML.
+
+**Backlog EPIC 4 :**
+- [ ] Maîtriser la construction d'un `.dsk` Oric (raw↔MFM) + injecter/lancer un ML depuis disque.
+- [ ] Écrire `read_track_sector` Oric (WD1793) → lecture secteur en RAM.
+- [ ] Setup `disk_info` (géométrie disque Oric) + placement du story-file.
+- [ ] Brancher VMEM sur ce `read_track_sector` (pagination high memory).
+- [ ] Écriture secteur → save / restore d'état.
 
 ### EPIC 5 — Intégration & jeu
 - [ ] Image `.dsk` Sedoric bootable contenant interpréteur + jeu
