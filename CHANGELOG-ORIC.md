@@ -3,8 +3,25 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
-## [Non publié] - 2026-08-12 — EPIC 5 : cause racine du hang d'init IDENTIFIÉE
-### Diagnostic (outillage émulateur)
+## [0.12.0] - 2026-08-12 — EPIC 3/5 : hang d'init CORRIGÉ, l'init s'exécute en entier
+### Majeur
+- **Hang d'init v0.11.0 CORRIGÉ.** `kernal_getchar` et `kernal_delay_1ms`, jusque-là
+  placeholders `$0000` dans `constants-oric.asm`, sont désormais de vraies routines Oric
+  (`keyboard-oric.asm`) : `kernal_getchar` → `read_key` (GETIN non bloquant, A=ASCII/0) ;
+  `kernal_delay_1ms` → boucle calibrée ~1 ms **préservant X/Y** (requis par `wait_yx_ms`).
+- **`keyboard-oric.asm` intégré au build moteur** (sourcé sous `TARGET_ORIC`) et
+  `kbd_init` appelé à `program_start` (init matrice clavier). Fin de l'isolement standalone
+  du module clavier (EPIC 3 « branché »).
+- **L'init Ozmoo s'exécute intégralement sur Oric** : splash (attente ~15 s, poll clavier
+  réel) → `deletable_init` → `parse_object_table`. Prouvé par marqueurs `123` à l'écran
+  (test E2E). Les builds VMEM (12032 o) et non-VMEM (11008 o) assemblent exit 0.
+
+### Tests
+- `test-oric/init_e2e.sh` (ex-`trace_hang.sh`) : test E2E d'init avec assertion `123`
+  (30 M cycles pour dépasser le splash). **PASS.**
+- `kbd_read.asm` re-validé (touche `1` → `read_key` renvoie `$31`). **PASS.**
+
+### Diagnostic (outillage émulateur) — méthode ayant localisé la cause
 - **Cause racine du blocage v0.11.0 confirmée** : `splash_screen` (appelé en L946
   de `ozmoo.asm`, `SPLASHWAIT=15`) exécute `jsr kernal_getchar` (L91 de
   `splashscreen.asm`), or `kernal_getchar = $0000` dans `constants-oric.asm:168`
@@ -18,13 +35,9 @@ Format inspiré de Keep a Changelog. Le portage suit une logique agile
   (noms Ozmoo). Remplace la bissection par marqueurs écran, jusque-là bloquée.
 
 ### Infra
-- Script de repro+diagnostic `test-oric/trace_hang.sh` : build voie B non-VMEM avec
-  labels VICE, image `$500`+story, run headless ROM+`-f`+`CLOAD`, profil + dump RAM.
-
-### Reste (fix)
-- Brancher `kernal_getchar` (non bloquant → 0 si pas de touche) et `kernal_delay_1ms`
-  sur les implémentations Oric (`keyboard-oric` `read_key` + temporisation VIA) —
-  complétion EPIC 3. Puis relancer `trace_hang.sh` → marqueurs 1/2/3.
+- Script de repro+diagnostic `test-oric/init_e2e.sh` : build voie B non-VMEM avec
+  labels VICE, image `$500`+story (`story_start` lu dynamiquement dans le `.lab`),
+  run headless ROM+`-f`+`CLOAD`, profil + dump RAM + assertion `123`.
 
 ## [0.11.0] - 2026-08-12 — EPIC 5 : l'interpréteur porté S'EXÉCUTE sur Oric
 ### Majeur

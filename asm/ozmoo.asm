@@ -337,6 +337,7 @@ program_start
 	sta $bb80
 -	jmp -
 }
+	jsr kbd_init          ; EPIC 3 : init matrice clavier Oric (DDRB + PSG R7)
 }
 !ifdef TARGET_C128 {
 	lda #%00001110 ; 48K RAM0 (0-$c000)
@@ -1186,6 +1187,7 @@ statmem_reu_banks !byte 0
 }
 !ifdef TARGET_ORIC {
 !source "screenkernal-oric.asm"
+!source "keyboard-oric.asm"    ; EPIC 3 : kernal_getchar / kernal_delay_1ms / read_key
 } else {
 !source "screenkernal.asm"
 }

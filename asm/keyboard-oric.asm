@@ -27,6 +27,32 @@ kbd_init
 	jsr kay_write
 	rts
 
+; --- kernal_getchar : GETIN Oric (non bloquant) -----------------------------
+; Contrat KERNAL C64 ($FFE4) : A = ASCII de la touche, 0 si aucune. read_key
+; respecte deja ce contrat. Registres clobbes (comme GETIN) : A,X,Y.
+kernal_getchar
+	jmp read_key
+
+; --- kernal_delay_1ms : temporisation ~1 ms (Oric ~1 MHz) --------------------
+; PRESERVE A,X,Y : wait_yx_ms (disk.asm) boucle avec X/Y comme compteurs autour
+; de cet appel -> il ne doit PAS les alterer. Boucle calibree : 200 iterations
+; de dex/bne (5 cy) ~= 1000 cy ~= 1 ms.
+kernal_delay_1ms
+	pha
+	txa
+	pha
+	tya
+	pha
+	ldx #200
+-	dex
+	bne -
+	pla
+	tay
+	pla
+	tax
+	pla
+	rts
+
 ; --- read_key : ASCII en A (0 si aucune touche) -----------------------------
 read_key
 	ldx #0                 ; colonne

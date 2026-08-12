@@ -131,7 +131,7 @@ keyboard_buff_len     = $c6      ; >>> PORT : longueur buffer clavier Oric
 keyboard_buff         = $0277    ; >>> PORT : buffer clavier Oric
 key_repeat            = $028a    ; >>> PORT : gestion repetition touche
 charset_switchable    = $0291    ; >>> PORT : bascule jeu de caracteres
-kernal_delay_1ms      = $0000    ; >>> PORT TODO (temporisation 1ms via VIA)
+; kernal_delay_1ms : label reel defini dans keyboard-oric.asm (EPIC 3)
 
 ; Registres "raster" du VIC/TED : inexistants sur l'ULA Oric.
 ; Placeholders pour l'assemblage ; la synchro scroll passera par le VIA 6522.
@@ -165,7 +165,7 @@ kernal_load           = $0000       ; >>> PORT TODO (chargement Sedoric)
 kernal_save           = $0000       ; >>> PORT TODO (sauvegarde Sedoric)
 kernal_settime        = $0000       ; >>> PORT TODO (VIA 6522)
 kernal_readtime       = $0000       ; >>> PORT TODO (VIA 6522)
-kernal_getchar        = $0000       ; >>> PORT TODO
+; kernal_getchar : label reel defini dans keyboard-oric.asm (EPIC 3, non bloquant)
 
 ; =============================================================================
 ; POINTS D'ENTREE SYSTEME — a reimplementer en Oric/Sedoric
