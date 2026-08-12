@@ -42,7 +42,9 @@ read_track_sector
 	sta FDC_CMD           ; Seek
 	jsr rts_wait_ready
 	lda rts_sector
-	sta FDC_SECTOR
+	clc
+	adc #1                ; readblock produit un secteur 0-based ; les ID
+	sta FDC_SECTOR        ; physiques Sedoric/MFM sont 1-based (1..17) -> +1
 	lda #$80
 	sta FDC_CMD           ; Read Sector
 	ldy #0

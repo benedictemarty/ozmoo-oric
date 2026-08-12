@@ -3,6 +3,24 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.20.0] - 2026-08-13 — EPIC 5 voie A : base secteur validée sur Oric (+1)
+### Résolu (doc « Sedoric 3.0 à nu » + validation machine)
+- **Numérotation des secteurs tranchée : 1-based.** Les ID physiques Sedoric/MFM
+  vont de 1 à 17 (confirmé par la doc et par `dsk_raw2mfm.py` : `sec = si+1`), or
+  `readblock` produit un secteur **0-based**. Fix : **`read_track_sector` ajoute +1**
+  (dans `disk.asm` intégré ET `disk-oric.asm` standalone).
+- **Validé SUR ORIC** : test `rts_sectorbase` — disque à contenu connu (octet0 = ID
+  physique), lecture des secteurs 0/1/2 → affiche `123` (= octets des ID 1/2/3). PASS.
+- Faits de format consignés (`docs/PORTING_ORIC.md`, `tools/oric_disk.py`) : géométrie
+  Sedoric **2 faces × 42 pistes × 17 secteurs × 256 o** ; **piste 20 = piste système**
+  (à éviter si Sedoric-compatible) ; le **skew physique** (pistes commençant aux
+  secteurs 1,14,10,6,2…) est une optimisation de latence sans impact sur la correction
+  (le WD1793 adresse par ID ; `dsk_raw2mfm` pose les ID 1..17 dans l'ordre).
+
+### Tests
+- `test-oric/rts_sectorbase.sh` (nouveau) : PASS. Round-trip Python 2092 blocs OK.
+  czech PASS 349/0. init_e2e PASS. Build VMEM exit 0.
+
 ## [0.19.0] - 2026-08-12 — EPIC 5 voie A : socle constructeur de disque (vérifié)
 ### Ajouté
 - **`tools/oric_disk.py`** : socle du constructeur de disque VMEM Oric. Porte

@@ -346,7 +346,9 @@ read_track_sector
 	sta $0310              ; Seek
 	jsr .oric_fdc_wait
 	lda .sector
-	sta $0312
+	clc
+	adc #1                 ; readblock: secteur 0-based -> ID physique Sedoric/MFM
+	sta $0312              ; 1-based (1..17). Validé sur Oric (test rts_sectorbase).
 	lda #$80
 	sta $0310              ; Read Sector
 	ldy #0

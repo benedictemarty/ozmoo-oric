@@ -33,6 +33,16 @@ class Geometry:
         return len(self.track_length) - 1  # index 0 inutilisé
 
 
+# Géométrie Sedoric standard (confirmée par « Sedoric 3.0 à nu » + dsk_raw2mfm) :
+#   2 faces x 42 pistes x 17 secteurs x 256 o. Secteurs 1-based (IDs 1..17).
+#   read_track_sector reçoit un secteur 0-based (readblock) et ajoute +1 -> ID
+#   physique. Le skew physique (pistes commençant aux secteurs 1,14,10,6,2...) est
+#   une optimisation de latence ignorée par dsk_raw2mfm (IDs posés 1..17 en ordre) :
+#   sans impact sur la correction (le WD1793 trouve un secteur par son ID). Piste 20
+#   = piste système Sedoric (à éviter si le disque doit rester Sedoric-compatible).
+SEDORIC_SIDES, SEDORIC_TRACKS_PER_SIDE, SEDORIC_SECTORS = 2, 42, 17
+
+
 def default_microdisc(tracks=41, sectors=17, config_track=1, config_sectors=2,
                       interleave=0):
     """Géométrie Microdisc/Sedoric simplifiée mono-face : pistes 1..tracks,
