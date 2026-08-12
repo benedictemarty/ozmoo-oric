@@ -93,6 +93,17 @@
 	}
 }
 
+!ifdef TARGET_ORIC {
+	; ORIC-1 / Atmos (6502, Microdisc + Sedoric). Portage en cours.
+	; Voir docs/PORTING_ORIC.md. Banc de test : emulateur Phosphoric (~/Oric1).
+	TARGET_ASSIGNED = 1
+	NO_COLOUR_MAP = 1      ; Oric = attributs serie, pas de colour-map VIC/TED
+	SUPPORT_REU = 0
+	!ifndef SLOW {
+		SLOW = 1
+	}
+}
+
 !ifndef TARGET_ASSIGNED {
 	; No target given. C64 is the default target
 	TARGET_C64 = 1
@@ -844,6 +855,8 @@ c128_border_phase1
 
 } else ifdef TARGET_X16 {
 !source "constants-x16.asm"
+} else ifdef TARGET_ORIC {
+!source "constants-oric.asm"
 } else {
 !source "constants.asm"
 }
