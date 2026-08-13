@@ -32,9 +32,13 @@ la piste config et le pipeline `build_game_disk` complet.
   binaire, `--dump-ram-at` + labels `.lab`, comparaison RAM↔story. Chaque bug isolé au
   niveau octet (config OK → vmap=0 → vmap non peuplé → mauvais blocs → dynmem-offset).
 
-### Reste
-- 7 tests czech en échec (VMEM) : blocs mal paginés à raffiner (probable bord dynmem/
-  statique ou pagination runtime d'un bloc non préchargé). Puis vrais jeux V5.
+### Reste — diagnostic précis des 7 échecs
+- Tests en échec : **[64],[145],[151],[152],[156],[164],[165],[213]**, tous dans la
+  section czech **« high memory »**. **Pas un problème de données** : 16/16 blocs
+  statiques vérifiés corrects en RAM. Pattern **valeurs inversées/décalées d'un élément**
+  ([164]↔[165], [151]/[152]) → bug de **traduction d'adresse vmem** (`read_byte_at_z_address`,
+  vmem.asm L744) pour certains accès high-memory. Voie B (non-VMEM) = 349/0 → opcodes OK.
+  À instrumenter : chemin de lecture vmem non-REU. Puis vrais jeux V5.
 
 ## [0.27.0] - 2026-08-13 — EPIC 5 : L'INTERPRÉTEUR BOOTE DEPUIS DISQUE (Sedoric)
 ### JALON — Ozmoo se lance depuis une disquette Sedoric
