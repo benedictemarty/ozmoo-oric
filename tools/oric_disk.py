@@ -126,6 +126,51 @@ def build_disk_info_entry(config_track_map, device=0):
 
 
 # --------------------------------------------------------------------------
+# 2bis) disk_info COMPLET (préambule global + entrée save + entrée story)
+# --------------------------------------------------------------------------
+# Structure réelle lue par disk.asm (déduite de make.rb config_data + build_S1) :
+#   disk_info+0 : interleave
+#   disk_info+1 : save slots
+#   disk_info+2 : nombre de disques (2 = save + story)
+#   disk_info+3.. : entrées disque. Chaque entrée (indexée par x, memory index) :
+#     +0 taille (offset vers l'entrée suivante), +1 device, +2/+3 lastblock+1 (hi,lo),
+#     +4 nb pistes, +5.. octets/piste puis nom (longueur = taille - 5 - nbpistes).
+# L'entrée 0 est le DISQUE DE SAUVEGARDE (8 octets, lastblock+1=0, 0 piste) ; la
+# story est donc sur le disque d'indice 1. C'est indispensable : la track-walk de
+# readblock n'obtient `.blocks_to_go` en big-endian (ordre qu'elle attend) qu'après
+# être passée par une entrée précédente via `.next_disk` (cf. FINDING v0.21.0).
+#
+# NB : le nom d'un disque n'a PAS une longueur fixe (save = 3 octets, story = 6) ;
+# c'est le champ « taille » qui pilote le saut d'une entrée à l'autre.
+
+# Valeurs de nom neutres (l'interpréteur ne s'en sert que pour l'affichage).
+SAVE_ENTRY_NAME = [ord('S'), ord('D'), 0]          # « Save disk » (3 octets)
+STORY_ENTRY_NAME = [ord('B'), ord('/'), ord(' '), ord('S'), ord('D'), 0]  # 6 octets
+
+
+def build_full_disk_info(config_track_map, device=0, interleave=0, save_slots=1,
+                         save_name=None, story_name=None):
+    """Construit le `disk_info` COMPLET (liste d'octets) tel que l'interpréteur le
+    reçoit en RAM : préambule + entrée save (index 0) + entrée story (index 1).
+    C'est la structure à écrire dans la piste de config et à valider on-Oric."""
+    if save_name is None:
+        save_name = SAVE_ENTRY_NAME
+    if story_name is None:
+        story_name = STORY_ENTRY_NAME
+    story = build_disk_info_entry(config_track_map, device)
+    lb = story["last_block_plus_1"]
+    story_size = 5 + len(config_track_map) + len(story_name)
+    save_size = 5 + 0 + len(save_name)
+    di = [interleave, save_slots, 2]
+    # entrée 0 : disque de sauvegarde (aucune piste, lastblock+1 = 0)
+    di += [save_size, device, 0, 0, 0] + list(save_name)
+    # entrée 1 : disque story
+    di += ([story_size, device, lb >> 8, lb & 0xff, len(config_track_map)]
+           + list(config_track_map) + list(story_name))
+    return di
+
+
+# --------------------------------------------------------------------------
 # 3) LECTEUR (port de asm/disk.asm readblock, mono-disque)
 # --------------------------------------------------------------------------
 def readblock_map(block, disk_info_entry, interleave=0, nonstored_pages=0):
@@ -164,6 +209,75 @@ def readblock_map(block, disk_info_entry, interleave=0, nonstored_pages=0):
             return (track, sector)
         track_map[sector] = 0xff
         sector = (sector + interleave) % sector_count
+
+
+def readblock_full(block, di, nonstored_pages=0, check_errors=True):
+    """Port FIDÈLE du readblock multi-disque de disk.asm sur le `disk_info`
+    complet (sortie de build_full_disk_info). Reproduit octet par octet :
+      - la disk-walk (compare le bloc à chaque lastblock+1 ; le passage par une
+        entrée non retenue réordonne `.blocks_to_go` en big-endian) ;
+      - la track-walk (attend `.blocks_to_go` big-endian : +1 = poids faible) ;
+      - la recherche du secteur physique (interleave + secteurs sautés).
+    Renvoie (piste, secteur 0-based). Valide la structure telle que la lira l'Oric."""
+    interleave = di[0]
+    ndisks = di[2]
+    cur = block - nonstored_pages
+    adj_lo, adj_hi = cur & 0xff, (cur >> 8) & 0xff
+    btg = [adj_lo, adj_hi]      # .blocks_to_go : [+0, +1]
+    x, y = 0, 0
+    while True:
+        # .check_next_disk — utilise toujours currentblock_adjusted (inchangé)
+        next_disk_index = (x + di[3 + x]) & 0xff
+        t = adj_lo - di[6 + x]                 # sbc lastblock+1 lo  -> tmp+1
+        tmp1, carry = t & 0xff, 1 if t >= 0 else 0
+        t2 = adj_hi - di[5 + x] - (1 - carry)  # sbc lastblock+1 hi  -> tmp+0
+        tmp0, carry2 = t2 & 0xff, 1 if t2 >= 0 else 0
+        if carry2 == 0:                        # bcc -> disque trouvé
+            break
+        btg[0], btg[1] = tmp0, tmp1            # réordonnancement big-endian
+        x = next_disk_index
+        y += 1
+        if check_errors and y >= ndisks:
+            raise IndexError(f"bloc {block} au-delà de la story (out of memory)")
+    # .right_disk_found — track-walk
+    disk_tracks = di[7 + x]
+    track = 1
+    while True:
+        byte = di[8 + x]
+        if byte == 0:
+            x += 1
+            track += 1
+            disk_tracks -= 1
+            if disk_tracks == 0:
+                raise IndexError("config incorrecte : piste introuvable")
+            continue
+        sector = byte & 0x3f
+        t = btg[1] - sector                    # .blocks_to_go+1 - sectors
+        tmp1, carry = t & 0xff, 1 if t >= 0 else 0
+        t2 = btg[0] - (1 - carry)              # .blocks_to_go+0 - borrow
+        tmp0, carry2 = t2 & 0xff, 1 if t2 >= 0 else 0
+        if carry2 == 0:                        # bcc -> piste trouvée
+            break
+        btg[0], btg[1] = tmp0, tmp1
+        x += 1
+        track += 1
+        disk_tracks -= 1
+        if disk_tracks == 0:
+            raise IndexError("config incorrecte : piste introuvable")
+    # .right_track_found — secteur physique (identique à readblock_map)
+    logical_sector = btg[1]
+    skip = (byte >> 5) & 0x06
+    sector_count = (byte & 0x3f) + skip
+    track_map = [0xff] * skip + [0] * (byte & 0x3f)
+    target, sec = logical_sector, 0
+    while True:
+        while track_map[sec] != 0:
+            sec = (sec + 1) % sector_count
+        target -= 1
+        if target < 0:
+            return (track, sec)
+        track_map[sec] = 0xff
+        sec = (sec + interleave) % sector_count
 
 
 # --------------------------------------------------------------------------
@@ -238,6 +352,29 @@ def _disk_data_test():
     return checks
 
 
+def _full_disk_info_test():
+    """Valide le walk COMPLET (save+story) : pour chaque bloc placé sur le disque
+    story, readblock_full (via le disk_info réel à 2 disques) retrouve exactement
+    la (piste, secteur) du placement. Prouve que la structure que lira l'Oric —
+    avec l'entrée save en tête qui déclenche le byte-swap big-endian — est correcte.
+    C'est le cas que le harnais mono-disque ne pouvait pas couvrir (FINDING v0.21.0)."""
+    checks = 0
+    for interleave in (0, 1, 3, 5):
+        for nsec in (1, 2, 16, 17, 18, 34, 100, 300, 600):
+            geo = default_microdisc(tracks=41, sectors=17, config_track=1,
+                                    config_sectors=2, interleave=interleave)
+            p = place_story(nsec, geo)
+            di = build_full_disk_info(p.config_track_map, interleave=interleave)
+            for block, (t, s) in enumerate(p.blocks):
+                got = readblock_full(block, di)
+                assert got == (t, s), (
+                    f"interleave={interleave} nsec={nsec} bloc={block}: "
+                    f"placé en {(t, s)} mais readblock_full donne {got}")
+                checks += 1
+    print(f"OK: {checks} blocs vérifiés via disk_info COMPLET (save+story, walk multi-disque)")
+    return checks
+
+
 def disk_info_bytes(info, name_bytes=None):
     """Sérialise l'entrée disk_info (comme make.rb build_S1) :
     [taille, device, lastblock+1_hi, lastblock+1_lo, nbpistes] + octets/piste + nom(6)."""
@@ -262,10 +399,13 @@ def _cli(argv):
     raw, info, p = build_disk(story, geo)
     open(argv[2], "wb").write(raw)
     di = disk_info_bytes(info)
+    full = build_full_disk_info(p.config_track_map, interleave=interleave)
     print(f"story={len(story)}o -> {len(p.blocks)} blocs, image brute {len(raw)}o -> {argv[2]}")
     print(f"1ers blocs (bloc->piste,secteur): "
           + ", ".join(f"{n}->{p.blocks[n]}" for n in range(min(6, len(p.blocks)))))
-    print(f"disk_info ({len(di)} octets) = " + " ".join(f"{b:02x}" for b in di))
+    print(f"disk_info entrée story ({len(di)} octets) = " + " ".join(f"{b:02x}" for b in di))
+    print(f"disk_info COMPLET ({len(full)} octets, préambule+save+story) = "
+          + " ".join(f"{b:02x}" for b in full))
     return 0
 
 
@@ -275,3 +415,4 @@ if __name__ == "__main__":
         sys.exit(_cli(sys.argv))
     _roundtrip_test()
     _disk_data_test()
+    _full_disk_info_test()

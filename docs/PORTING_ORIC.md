@@ -229,14 +229,20 @@ constructeur de disque. Découpage :
    Testé : 600 blocs relus depuis l'image == story.*
 3. **Boot loader** : charger l'interpréteur + init `disk_info` → 1re exécution VMEM.
 
-⚠️ **Finding (harnais readblock standalone)** : `readblock` ne trouve la bonne piste
-que si `.blocks_to_go` est réordonné en big-endian par un passage dans `.next_disk`
-(réordonnancement `.blocks_to_go_tmp`). Or ce passage n'a lieu que si le bloc n'est
-PAS sur le 1er disque. Donc **le `disk_info` réel place la story en disque ≥ 1**, avec
-une entrée « disque de sauvegarde » (index 0) en tête (cf. make.rb `build_S1`/`build_S2`).
-La validation on-Oric du `readblock` assembleur doit donc utiliser la structure
-`disk_info` COMPLÈTE (préambule interleave/saveslots/ndisks + entrée save + entrée
-story) — à faire dans le contexte VMEM réel, pas en harnais mono-disque.
+✅ **Finding (harnais readblock standalone) — RÉSOLU en Python (v0.22.0)** : `readblock`
+ne trouve la bonne piste que si `.blocks_to_go` est réordonné en big-endian par un passage
+dans `.next_disk` (réordonnancement `.blocks_to_go_tmp`). Ce passage n'a lieu que si le
+bloc n'est PAS sur le 1er disque → **le `disk_info` réel place la story en disque ≥ 1**,
+avec une entrée « disque de sauvegarde » (index 0) en tête (cf. make.rb `config_data` init
+L3468 + `build_S1` L1682). Structure complète confirmée :
+`[interleave, save_slots, ndisks=2]` + save `[8, dev, 0,0, 0, nom(3)]` + story
+`[taille, dev, lb+1_hi, lb+1_lo, nbpistes, octets/piste…, nom(6)]` (le nom n'a PAS de
+longueur fixe ; le champ « taille » pilote le saut d'une entrée à l'autre).
+`tools/oric_disk.py` fournit `build_full_disk_info()` (cette structure) + `readblock_full()`
+(port fidèle du `readblock` **multi-disque**, byte-swap inclus). **Test `_full_disk_info_test`
+: 4352 blocs — placement ↔ readblock_full coïncident** via la structure à 2 disques (chemin
+que le harnais mono-disque ne couvrait pas). Reste à valider le `readblock` **assembleur**
+en contexte VMEM réel (au boot loader).
 
 ⚠️ **À valider sur Oric** (détails non tranchés côté format) : base de numérotation
 des **secteurs** (Sedoric = 1-based ; `readblock` produit du 0-based → +1 probable

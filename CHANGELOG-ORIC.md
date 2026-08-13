@@ -3,6 +3,34 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.22.0] - 2026-08-13 — EPIC 5 voie A : disk_info COMPLET (save+story) validé
+### Ajouté
+- **`oric_disk.py build_full_disk_info()`** : construit le `disk_info` **complet**
+  tel que l'interpréteur le reçoit en RAM — préambule global `[interleave, save_slots,
+  ndisks=2]` + **entrée « disque de sauvegarde »** (8 octets, lastblock+1=0, 0 piste)
+  en index 0 + **entrée story** en index 1. Structure déduite de `make.rb` (`config_data`
+  init + `build_S1`). L'entrée save en tête est **indispensable** : c'est son passage via
+  `.next_disk` qui réordonne `.blocks_to_go` en big-endian, ordre qu'attend la track-walk
+  (cf. FINDING v0.21.0 — la story est donc toujours sur le disque d'indice ≥ 1).
+- **`oric_disk.py readblock_full()`** : port **fidèle** du `readblock` **multi-disque**
+  de `disk.asm` (disk-walk avec byte-swap big-endian, track-walk, recherche secteur
+  physique interleave+skip). Reproduit le walk octet par octet sur le `disk_info` réel.
+- CLI `oric_disk.py` : imprime désormais le `disk_info` COMPLET (préambule+save+story)
+  en plus de l'entrée story seule.
+
+### Tests
+- **`_full_disk_info_test()` : 4352 blocs vérifiés** via la structure à 2 disques
+  (interleave 0/1/3/5, tailles 1..600) — pour chaque bloc placé, `readblock_full`
+  retrouve exactement la (piste, secteur) du placement. **Couvre le cas que le harnais
+  mono-disque ne pouvait pas** (le walk n'était correct que story sur disque ≥ 1).
+- Round-trip 2092 + image 600 blocs inchangés (toujours PASS).
+
+### Reste voie A
+- Init `disk_info` au boot depuis la piste config (`CONF_TRK`) → buffer `!fill 71`.
+- Boot loader (charger interpréteur + init disk_info) → **1re exécution VMEM réelle**
+  (validera enfin `readblock` assembleur avec cette structure complète).
+- Écriture de l'image en MFM Oric (via `~/Oric1/tools/dsk_raw2mfm.py`) + en-tête config.
+
 ## [0.21.0] - 2026-08-13 — EPIC 5 voie A : constructeur écrit de vraies images
 ### Ajouté
 - **`oric_disk.py build_disk()`** : écrit une image disque BRUTE side-major
