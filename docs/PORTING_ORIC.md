@@ -329,6 +329,35 @@ Sedoric est **simple à cohabiter** :
   + **face 1** (déjà prévu : `read_track_sector` à étendre pour piste>41), en évitant
   20 et la zone interp. Optimisation ultérieure ; sans objet pour la 1re preuve.
 
+**Construction du fichier AUTO (mesuré, build VMEM `--vicelabels`) :** le binaire VMEM
+fait **exactement $0500–$33FF** (12032 o) et se termine **pile à `story_start=$3400`**.
+Adresses : `program_start=$0500`, `program_end=$2BA9`, `vmem_cache_start=config_load_address=$2C00`,
+`stack_start=$3000`, `deletable_init=$3079` (vit **dans la pile** — astuce « deletable »,
+écrasée après usage), `story_start=$3400`. Donc **fichier AUTO = interp ($500–$33FF) +
+dynmem (`<story>.dynmem`, chargé à $3400)** — sans chevauchement. Pour czech : +2560 o de
+dynmem → fichier $500–$3DFF ; les blocs statiques faultent du disque à `$3E00+`
+(`vmap_first_ram_page = nonstored_pages + >story_start = $3E`). `sedoric_inject.py` :
+load=$500, exec=$500 (=`program_start`).
+
+**Outil `tools/mfm2raw.py` (fait, testé)** : extrait une image MFM_DISK Phosphoric →
+RAW side-major (inverse de `dsk_raw2mfm.py`). Round-trip raw→MFM→raw = identité ; testé
+sur `sedoric3.dsk`/`SEDO40u.DSK` (re-MFM reboote « SEDORIC V3.0 »).
+
+⚠️ **Géométrie — à trancher pour le builder** : les masters Sedoric fournis
+(`sedoric3.dsk`, `SEDO40u.DSK`) sont en **80 pistes/face** (pas 42) et **pleins**
+(pistes 1-19 occupées). `oric1-emu --disk-create` produit un blank **42 pistes** (=géométrie
+`oric_disk.py`) mais **non bootable** (« insert system disc ») ; `make_bootable_sedoric.sh`
+échoue à le rendre bootable (timing calibré 80 pistes). `read_track_sector` **force side 0**
+et seek n'importe quelle piste → OK jusqu'à 79 sur face 0.
+
+**Reste à faire (builder disque de jeu Sedoric) — le vrai prochain incrément :** un
+`build_game_disk.py` façon make.rb : partir d'un master **bootable** (via `mfm2raw`), lire
+le **catalogue/VTOC** pour la carte des secteurs libres, y placer story+config (secteurs
+bruts) **et** marquer ces secteurs occupés dans le bitmap, injecter l'interp AUTO
+(`sedoric_inject`), régler l'INIST autoexec pour lancer l'interp, reconvertir en MFM. La
+marche de catalogue (chaîne directory `t20s4`) doit être robuste (bornes) — première
+tentative inline a dérivé sur un descripteur hors borne. Puis **1re exécution VMEM**.
+
 - [ ] Faire tourner un jeu **V3** (parité Pinforic) sur Phosphoric
 - [ ] Faire tourner un jeu **V5** (objectif final)
 

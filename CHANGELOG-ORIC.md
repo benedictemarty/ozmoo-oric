@@ -3,6 +3,39 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.26.0] - 2026-08-13 — EPIC 5 : pipeline Sedoric — AUTO file, mfm2raw, géométrie
+### Décision
+- Voie **bootstrap Sedoric minimal** retenue (interp = fichier AUTO). Coexistence avec
+  les secteurs bruts story résolue : piste 20 = système, fichiers dès piste 21,
+  pistes 1-19 libres pour la story (petit jeu).
+
+### Ajouté
+- **`tools/mfm2raw.py`** : extrait une image **MFM_DISK** (Phosphoric) → **RAW side-major**
+  (inverse de `dsk_raw2mfm.py`) ; repère les secteurs par leurs address marks
+  (`A1 A1 A1 FE`/`FB`). Indispensable pour partir d'un master Sedoric (fourni en MFM) et
+  opérer en raw. **Test round-trip raw→MFM→raw = identité** ; validé sur `sedoric3.dsk`/
+  `SEDO40u.DSK` (re-MFM reboote « SEDORIC V3.0 »).
+
+### Mesuré (build VMEM `--vicelabels`)
+- Binaire VMEM = **exactement $0500–$33FF** (12032 o), finit **pile à `story_start=$3400`**.
+  `deletable_init=$3079` vit **dans la pile** (astuce deletable). ⇒ **fichier AUTO = interp
+  + dynmem** (dynmem à $3400) sans chevauchement ; blocs statiques faultent à `$3E00+`.
+  `sedoric_inject.py` load=$500 exec=$500 (=`program_start`).
+
+### Découvert (géométrie — à trancher)
+- Masters Sedoric fournis = **80 pistes/face** et pleins (pistes 1-19 occupées).
+  `--disk-create` = blank **42 pistes** (géométrie `oric_disk.py`) mais **non bootable** ;
+  `make_bootable_sedoric.sh` échoue dessus (timing 80 pistes). `read_track_sector` force
+  side 0, seek libre → OK jusqu'à piste 79.
+
+### Reste (prochain incrément)
+- **`build_game_disk.py`** (façon make.rb) : master bootable → carte VTOC des secteurs
+  libres → placer story+config (bruts) + marquer occupés → injecter interp AUTO + INIST
+  autoexec → MFM. Marche de catalogue à rendre robuste (bornes). Puis **1re exécution VMEM**.
+
+### Tests
+- `mfm2raw` round-trip PASS ; suite `oric_disk.py` (5 tests) inchangée (PASS).
+
 ## [0.25.0] - 2026-08-13 — EPIC 5 : amorçage disque-only, analyse EPROM Microdisc
 ### Décision
 - **Abandon de la cassette** : cible **disque-only** (un V5 ne tient pas en RAM). Choix
