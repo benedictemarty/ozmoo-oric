@@ -266,8 +266,43 @@ des **secteurs** (Sedoric = 1-based ; `readblock` produit du 0-based → +1 prob
 dans `read_track_sector`), gestion des **2 faces** (le `read_track_sector` Oric
 actuel force side 0). Le socle `read_track_sector` WD1793 est déjà validé isolément.
 
-### EPIC 5 — Intégration & jeu
-- [ ] Image `.dsk` Sedoric bootable contenant interpréteur + jeu
+### EPIC 5 — Amorçage disque : analyse de l'EPROM Microdisc (v0.25.0)
+
+**Objectif** : version **disque-only** (la cassette est abandonnée ; un V5 ne tient pas
+en RAM). Décision retenue avec l'utilisateur : **boot « maison »** (disque brut, sans DOS)
+plutôt que fichier AUTO Sedoric. L'analyse empirique de l'EPROM (`microdis.rom`) via
+Phosphoric (`--trace`, `--dump-ram-at`, `da65`) révèle toutefois un **couplage fort à
+Sedoric** :
+
+- **Reset** : l'overlay EPROM ($E000-$FFFF) est visible, BASIC ROM désactivée
+  (`microdisc.c` : `diskrom=romdis=true`). Vecteur RESET = **$EB7E**. L'init copie une
+  routine disque de `$EEED`→`$0480` et une de `$EF68`→`$BFE0`, prépare la ZP.
+- **Lecture d'amorçage** (prouvée par la trace + dump RAM) : l'EPROM lit **piste 0,
+  secteur physique 1** dans un buffer à **$C013** (bloc de paramètres à `$C000` :
+  `track, sector=1, bufptr=$13,$C0`). Ce secteur **n'est pas du code** : c'est le
+  **secteur système Sedoric** (octets d'en-tête + nom « SEDORIC » à `$C033`, géométrie).
+- **Validation + chargement** : l'EPROM **parse cet en-tête** (`LDA $C033,x` etc.), puis
+  charge le **DOS** en plusieurs étapes — 8 lectures observées sur secteurs 1,1,3,3,2,1,3,3
+  (multi-pistes) — avant de lancer Sedoric (écran « SEDORIC V3.0 » atteint à ~2 M cycles).
+
+**Conclusion (importante)** : l'EPROM Microdisc **ne fournit pas de hook générique**
+« charge un secteur et saute dedans » ; son amorçage est un **protocole multi-étapes
+propre à Sedoric** (secteur système validé → chargement DOS → handoff). Un boot « 100 %
+maison sans DOS » implique donc de **reproduire/leurrer ce protocole** (format du secteur
+système que l'EPROM valide + séquence de chargement + adresse de saut), ce qui est
+nettement plus lourd qu'anticipé. Détails encore **inconnus** (à ne pas inventer) :
+la signature exacte validée, la séquence de chargement DOS et l'adresse de handoff final.
+
+**Options** (à re-trancher avec l'utilisateur au vu de ce couplage) :
+1. **Boot maison intégral** : désassembler le parseur de secteur système de l'EPROM
+   (zone `$E8xx` autour de `LDA $C033,x`) pour établir le contrat minimal, puis forger un
+   secteur système « juste assez Sedoric » qui charge notre interpréteur et y saute.
+   Le plus fidèle à « disque brut », mais reverse-engineering ROM conséquent.
+2. **Bootstrap Sedoric minimal** : injecter l'interpréteur comme **fichier AUTO** Sedoric
+   (`sedoric_inject.py`, déjà validé) ; Sedoric n'amorce QUE le chargement de l'interp,
+   qui prend ensuite tout le contrôle et lit la story en **secteurs bruts** via son propre
+   `read_track_sector` (VMEM). Faible risque, entièrement outillé.
+
 - [ ] Faire tourner un jeu **V3** (parité Pinforic) sur Phosphoric
 - [ ] Faire tourner un jeu **V5** (objectif final)
 

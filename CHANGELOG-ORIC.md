@@ -3,6 +3,35 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.25.0] - 2026-08-13 — EPIC 5 : amorçage disque-only, analyse EPROM Microdisc
+### Décision
+- **Abandon de la cassette** : cible **disque-only** (un V5 ne tient pas en RAM). Choix
+  utilisateur : boot « maison » (disque brut, sans DOS) — sous réserve de faisabilité.
+
+### Analyse (reverse-engineering empirique de `microdis.rom`)
+- Méthode : disque à **signatures uniques par secteur** (raw→MFM via `dsk_raw2mfm.py`),
+  `oric1-emu --trace/--dump-ram-at`, désassemblage `da65`. Faits **prouvés** :
+  - Reset EPROM = **$EB7E** ; overlay $E000-$FFFF visible, BASIC désactivée.
+  - L'EPROM lit **piste 0 / secteur physique 1** dans un buffer à **$C013** (bloc de
+    paramètres à `$C000` : track, sector=1, bufptr=$C013).
+  - Ce secteur = **secteur système Sedoric** (en-tête + nom « SEDORIC » à `$C033`,
+    géométrie), **pas du code**. L'EPROM le **valide** (`LDA $C033,x`…) puis **charge le
+    DOS** en plusieurs lectures (8 observées : secteurs 1,1,3,3,2,1,3,3, multi-pistes)
+    avant de lancer Sedoric (« SEDORIC V3.0 » à ~2 M cycles).
+- **Conclusion** : l'EPROM **n'offre pas de hook générique** « charge+saute » ; son
+  amorçage est un **protocole propre à Sedoric**. Un boot « 100 % maison sans DOS » exige
+  de **leurrer ce protocole** (bien plus lourd qu'anticipé). Restent **inconnus** (non
+  inventés) : signature exacte, séquence de chargement DOS, adresse de handoff.
+
+### Impact / à décider
+- Deux voies documentées dans `docs/PORTING_ORIC.md` §EPIC 5 : (1) boot maison intégral
+  (désassembler le parseur `$E8xx` de l'EPROM → contrat minimal), (2) bootstrap Sedoric
+  minimal (interp = fichier AUTO via `sedoric_inject.py`, puis story en secteurs bruts).
+  **À re-trancher avec l'utilisateur** au vu du couplage EPROM↔Sedoric.
+
+### Tests
+- Aucun code moteur/outil modifié → suite `oric_disk.py` (5 tests) inchangée (PASS).
+
 ## [0.24.0] - 2026-08-13 — EPIC 5 voie A : couche VMEM (dynmem + vmem_data)
 ### Analyse (chemin boot VMEM Oric tranché)
 - **La build VMEM assemble déjà** (`build-oric.sh`, exit 0, 12032 o) et les symboles se
