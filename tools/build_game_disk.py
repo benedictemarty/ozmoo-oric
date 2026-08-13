@@ -123,7 +123,13 @@ def build(master, interp_bin, story_path, out_dsk, name="OZMOO",
     print(f"catalogue : {len(used)} secteurs occupés, pistes {used_tracks}")
 
     # 4) placement story + piste config (secteurs bruts, pistes libres)
-    nblocks = (len(story) + SECSZ - 1) // SECSZ
+    # IMPORTANT : le disque ne contient QUE la portion STATIQUE (la story après la
+    # mémoire dynamique). La dynmem (nonstored_pages) est chargée à part via le fichier
+    # AUTO. readblock lit le bloc `currentblock - nonstored_pages` → disque bloc 0 = 1er
+    # bloc statique (cf. make.rb : $story_file_cursor = $dynmem_blocks * $VMEM_BLOCKSIZE).
+    nonstored_pages, dynmem_blocks, total_blocks = od.story_vmem_layout(story)
+    story_static = story[nonstored_pages * SECSZ:]
+    nblocks = (len(story_static) + SECSZ - 1) // SECSZ
     # Story sur les pistes HAUTES libres : les pistes basses (≈1-6) sont réservées
     # au DOS Sedoric hors catalogue (test : écraser la piste 1 casse le boot ; les
     # pistes 15+ sont sûres). `conf_trk` = 1re piste story (doit == -DCONF_TRK du build).
@@ -144,13 +150,12 @@ def build(master, interp_bin, story_path, out_dsk, name="OZMOO",
                  "choisir un master avec pistes basses libres ou étendre le placement")
 
     di_full = od.build_full_disk_info(p.config_track_map, interleave=0)
-    _, dynmem_blocks, total_blocks = od.story_vmem_layout(story)
     vmem_data = od.build_vmem_data(dynmem_blocks, total_blocks)
     cfg = od.build_config_track_bytes(list(game_id), di_full, vmem_data)
 
-    # écrit les blocs story
+    # écrit les blocs story STATIQUES (dynmem exclue)
     for n, (t, s) in enumerate(p.blocks):
-        blk = story[n * SECSZ:(n + 1) * SECSZ]
+        blk = story_static[n * SECSZ:(n + 1) * SECSZ]
         blk = blk + bytes(SECSZ - len(blk))
         o = off(0, t, s)
         raw[o:o + SECSZ] = blk

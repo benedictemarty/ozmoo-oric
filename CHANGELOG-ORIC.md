@@ -3,6 +3,39 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.28.0] - 2026-08-13 — ★★ JALON : czech TOURNE EN VMEM DEPUIS LE DISQUE ★★
+### Le cœur du projet est démontré
+czech.z3 s'exécute **de bout en bout en VMEM** sur Oric+Sedoric : la z-machine pagine
+la mémoire statique depuis la disquette (WD1793) à la demande. Verdict :
+**`Performed 363 tests. Passed: 337, Failed: 7. Didn't crash: hooray!`** (contre 349/0 en
+voie B tape ; 7 blocs restent à raffiner mais **aucun crash**). Première exécution VMEM
+réelle → valide `read_track_sector` assembleur, `readblock`, `load_suggested_pages`,
+la piste config et le pipeline `build_game_disk` complet.
+
+### Trois bugs corrigés (en plus du SEI de v0.27.0)
+- **`ozmoo.asm prepare_static_high_memory`** : `sta vmap_used_entries : tax` étaient
+  **hors** du bloc `!if SUPPORT_REU = 1` → en build non-REU (Oric) ils écrasaient
+  `vmap_used_entries` (16) par `npreloaded` (0). Remis dans le bloc. Bug Ozmoo générique
+  révélé par la cible non-REU.
+- **`constants-oric.asm`** : `vmap_buffer` était laissé à `$0334` (valeur C64, `>>> PORT
+  TODO`) → **collision avec la page système $03 de l'Oric** (I/O VIA/Microdisc +
+  workspace ROM/Sedoric) qui écrasait le vmap. **Relocalisé en page $02** (`$0200-$02CC`),
+  libre une fois l'interpréteur maître (SEI).
+- **`tools/build_game_disk.py`** : le disque doit contenir **uniquement la portion
+  STATIQUE** de la story (la dynmem est chargée à part via le fichier AUTO). `readblock`
+  lit le bloc `currentblock - nonstored_pages` → disque bloc 0 = 1er bloc statique
+  (cf. make.rb `$story_file_cursor = $dynmem_blocks * $VMEM_BLOCKSIZE`). On place donc
+  `story[nonstored_pages*256:]`.
+
+### Méthode
+- Debug outillé : halts `ORIC_DEBUG_VMAP`/`ORIC_DEBUG_CONFIG` (retirés), `da65` sur le
+  binaire, `--dump-ram-at` + labels `.lab`, comparaison RAM↔story. Chaque bug isolé au
+  niveau octet (config OK → vmap=0 → vmap non peuplé → mauvais blocs → dynmem-offset).
+
+### Reste
+- 7 tests czech en échec (VMEM) : blocs mal paginés à raffiner (probable bord dynmem/
+  statique ou pagination runtime d'un bloc non préchargé). Puis vrais jeux V5.
+
 ## [0.27.0] - 2026-08-13 — EPIC 5 : L'INTERPRÉTEUR BOOTE DEPUIS DISQUE (Sedoric)
 ### JALON — Ozmoo se lance depuis une disquette Sedoric
 - **`tools/build_game_disk.py`** : construit une disquette de jeu BOOTABLE (équivalent

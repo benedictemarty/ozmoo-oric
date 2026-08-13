@@ -116,8 +116,13 @@ memory_buffer_length  = 89
 
 ; Buffers VMEM (pagination disque). >>> PORT : placer en zone RAM libre Oric.
 directory_buffer      = $0400 ; >>> PORT TODO
-vmap_buffer_start     = $0334 ; >>> PORT TODO
-vmap_buffer_end       = $0400 ; >>> PORT TODO
+; Sur C64 le vmap est en $0334 (buffer cassette libre), MAIS sur l'Oric la page $03
+; est la PAGE SYSTÈME (I/O VIA/Microdisc $0300-$031F + workspace ROM/Sedoric au-dessus)
+; → collision qui écrasait le vmap (aucun bloc statique chargé, readblock bouclait).
+; Relocalisé en page $02 (libre une fois l'interpréteur maître : SEI, plus d'appel ROM).
+; $0200-$02CC = 102 entrées (2 o/entrée).
+vmap_buffer_start     = $0200
+vmap_buffer_end       = $02CC
 CURRENT_DEVICE        = $00   ; >>> PORT : notion de "device" Sedoric
 
 ; --- Symboles complementaires (placeholders de portage) ----------------------

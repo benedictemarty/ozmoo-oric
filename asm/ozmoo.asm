@@ -2279,7 +2279,7 @@ deletable_init
 	sta disk_info - 1,x
 	dex
 	bne -
-	
+
 	jsr auto_disk_config
 ;	jsr init_screen_colours
 } else { ; End of !ifdef VMEM
@@ -2863,13 +2863,16 @@ prepare_static_high_memory
 	sta vmap_blocks_preloaded ; # of blocks already loaded
 
 !if SUPPORT_REU = 1 {
-	; If using REU, suggested blocks will just be ignored
+	; If using REU, suggested blocks will just be ignored (all preloaded to REU) :
+	; ces deux lignes doivent rester DANS le bloc SUPPORT_REU, sinon en build non-REU
+	; (ex. TARGET_ORIC) elles écrasent vmap_used_entries (16) par npreloaded (0),
+	; et aucun bloc statique n'est plus chargé depuis le disque.
 	bit use_reu
 	bpl .ignore_blocks
-}
 	sta vmap_used_entries
 	tax
 .ignore_blocks
+}
 
 	cpx #0
 	beq .no_entries
