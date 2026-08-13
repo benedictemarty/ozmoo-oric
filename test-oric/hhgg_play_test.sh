@@ -37,22 +37,25 @@ cd ..
 python3 tools/build_game_disk.py "$MASTER" "$OUT/hhgg_interp.bin" "$STORY" \
   "$OUT/hhgg.dsk" HHGG cafedeed 15 | grep -E "story|interp AUTO|OK ->"
 
-# 3) boot + intro (~70M) + commandes tapees ("turn on light" multi-mots, puis "wait")
+# 3) boot + intro (~70M) + commandes : "turn on light" (multi-mots) puis "waix"+
+#    Backspace+"t" (teste l'effacement : doit donner "wait" -> "Time passes").
 "$EMU" -r "$ROM" --disk-rom "$MICRODISC" -d "$OUT/hhgg.dsk" -n \
   --type-keys 74000000:'turn on light\n' \
-  --type-keys 88000000:'wait\n' \
+  --type-keys 88000000:'waix\bt\n' \
   --screenshot-text-at 70000000:"$OUT/hhgg_intro.txt" \
   --screenshot-text-at 100000000:"$OUT/hhgg_play.txt" --cycles 102000000 >/dev/null 2>&1 || true
 
 echo "=== INTRO (@70M) ==="; grep -iE "HITCHHIKER|Release 59|pitch black|>" "$OUT/hhgg_intro.txt" | head -5
 echo "=== APRES COMMANDES (@100M) ==="; grep -v '^[[:space:]]*$' "$OUT/hhgg_play.txt" | tail -6
 
-# Assertions : intro affichee ET le parser a repondu a "wait" (preuve @sread + parser).
+# Assertions : intro affichee ; parser a repondu ("Time passes") -> @sread + parser OK ;
+# la ligne saisie s'affiche ">wait" PROPRE (pas ">waix t") -> Backspace efface bien.
 ok=1
 grep -qi "HITCHHIKER" "$OUT/hhgg_intro.txt" || { echo "FAIL: intro HHGG absente"; ok=0; }
 grep -qi "Time passes" "$OUT/hhgg_play.txt" || { echo "FAIL: parser n'a pas repondu a 'wait'"; ok=0; }
+grep -qE ">wait\b" "$OUT/hhgg_play.txt"     || { echo "FAIL: Backspace n'efface pas (attendu '>wait' propre)"; ok=0; }
 if [ "$ok" = 1 ]; then
-  echo "PASS: HHGG boote en VMEM, intro OK, saisie ligne @sread + parser OK (jouable sur Oric)"
+  echo "PASS: HHGG jouable (VMEM + @sread + parser + Backspace effacement OK) sur Oric"
   exit 0
 else
   exit 1

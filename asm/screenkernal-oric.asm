@@ -93,6 +93,8 @@ s_printchar
 	beq spc_clear
 	cmp #$0d
 	beq spc_newline
+	cmp #$08                  ; backspace/delete (8) -> efface le char precedent
+	beq spc_backspace
 	cmp #$12                  ; reverse on (18)
 	beq spc_rev_on
 	cmp #$92                  ; reverse off (146)
@@ -130,6 +132,18 @@ spc_rev_on
 spc_rev_off
 	lda #0
 	sta s_reverse
+	jmp spc_done
+
+; backspace/delete ($08) : recule d'une colonne et efface (retour visuel de la
+; saisie ligne @sread ; read_text a deja decremente .read_text_column et attend
+; que le char delete recule le curseur ecran + efface le caractere).
+spc_backspace
+	lda zp_screencolumn
+	beq spc_done              ; deja en colonne 0 -> rien
+	dec zp_screencolumn
+	ldy zp_screencolumn
+	lda #$20                  ; espace : efface le caractere supprime
+	sta (zp_screenline),y
 	jmp spc_done
 
 ; clear-screen ($93) : efface l'ecran, curseur en haut a gauche

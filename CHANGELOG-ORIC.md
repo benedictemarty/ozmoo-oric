@@ -3,6 +3,27 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.33.0] - 2026-08-13 — Saisie ligne : Backspace/Delete efface à l'écran
+### Effacement visuel de la saisie corrigé
+La touche **Backspace ou Delete** (toutes deux mappées sur le DEL Oric col5/row5 → ASCII 8
+dans l'émulateur) fonctionnait déjà **logiquement** (le buffer `@sread` était corrigé, le
+parser recevait le bon texte) mais **pas visuellement** : `read_text` envoie le caractère
+delete (8) à `s_printchar`, or l'`s_printchar` Oric ne le gérait pas → il l'affichait comme
+un blanc et **avançait** le curseur (`>waix t` au lieu de `>wait`). **Fix
+(`screenkernal-oric.asm`)** : `s_printchar` gère `$08` (`spc_backspace`) = recule d'une
+colonne et écrit un espace (efface le caractère). Résultat : `>wait` propre à l'écran, en
+phase avec le buffer.
+
+### Tests
+- **`test-oric/hhgg_play_test.sh`** étendu : la 2e commande devient `waix`+**Backspace**+`t`
+  → doit afficher `>wait` PROPRE et le parser répondre `Time passes...` → **PASS**.
+- Non-régression VMEM : czech.z3 349/0 (le char `$08` n'apparaît pas dans le texte de czech).
+
+### Note
+- Reste un artefact word-wrap à l'affichage des longues lignes (lignes dupliquées :
+  préfixe + ligne complète), dû à `num_rows=0` non initialisé (gestion de fenêtres V3
+  incomplète) — chantier séparé, non bloquant pour jouer.
+
 ## [0.32.0] - 2026-08-13 — ★★★★ HHGG JOUABLE SUR ORIC : gros jeu V3 en VMEM + @sread ★★★★
 ### L'aboutissement : un vrai jeu Infocom tourne et se joue sur Oric
 **The Hitchhiker's Guide to the Galaxy** (release 59, **111 Ko**, V3) **boote en VMEM
