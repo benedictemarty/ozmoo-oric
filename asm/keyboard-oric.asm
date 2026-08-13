@@ -137,14 +137,26 @@ kay_reg !byte 0
 kay_val !byte 0
 ktmp    !byte 0
 
-; table (col*8+row)->ASCII non-shiftee (extrait de keyboard.c ; incomplète — TODO
-; compléter lettres/shift). Suffit à valider le chemin scan->ASCII.
+; table (col*8+row)->ASCII (matrice non-shiftée complète, INVERSE de char_map dans
+; ~/Oric1/src/io/keyboard.c). Lettres en MINUSCULES (les jeux Z-machine saisissent en
+; minuscule ; l'écran Oric est en ASCII standard). Touches spéciales requises par la
+; saisie ligne read_text : RETURN (col7,row5)=$0d (13), DELETE (col5,row5)=$08 (8).
+; Les $00 = positions modificateurs (SHIFT col4/7 row4, CTRL col2 row4, FUNCT col5 row4),
+; flèches (col4 row3/5/6/7), ESC (col1 row5) : ignorées par la saisie ligne.
 krc_to_ascii
-	!byte $37,$00,$35,$00,$00,$31,$00,$33
-	!byte $00,$00,$00,$00,$00,$00,$00,$00
-	!byte $00,$36,$00,$34,$00,$00,$32,$00
-	!byte $00,$39,$3b,$2d,$00,$00,$5c,$27
+	; col0 : 7 n 5 v . 1 x 3
+	!byte $37,$6e,$35,$76,$00,$31,$78,$33
+	; col1 : j t r f . (ESC) q d
+	!byte $6a,$74,$72,$66,$00,$00,$71,$64
+	; col2 : m 6 b 4 . z 2 c
+	!byte $6d,$36,$62,$34,$00,$7a,$32,$63
+	; col3 : k 9 ; - . . \ '
+	!byte $6b,$39,$3b,$2d,$00,$00,$5c,$27
+	; col4 : espace , . (UP)(LSHIFT)(LEFT)(DOWN)(RIGHT)
 	!byte $20,$2c,$2e,$00,$00,$00,$00,$00
-	!byte $00,$00,$00,$00,$00,$00,$5d,$5b
-	!byte $00,$00,$00,$00,$00,$61,$00,$00
-	!byte $38,$00,$30,$2f,$00,$00,$00,$3d
+	; col5 : u i o p (FUNCT) DEL=8 ] [
+	!byte $75,$69,$6f,$70,$00,$08,$5d,$5b
+	; col6 : y h g e . a s w
+	!byte $79,$68,$67,$65,$00,$61,$73,$77
+	; col7 : 8 l 0 / (RSHIFT) RETURN=13 . =
+	!byte $38,$6c,$30,$2f,$00,$0d,$00,$3d

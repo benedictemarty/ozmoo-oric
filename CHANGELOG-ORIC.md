@@ -3,6 +3,37 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.31.0] - 2026-08-13 — Clavier : table complète (prérequis saisie ligne @sread)
+### Table clavier Oric complétée — lettres + RETURN + DELETE
+La table `krc_to_ascii` (`keyboard-oric.asm`) était **quasi vide** (≈24 touches : chiffres
++ quelques signes + 1 seule lettre), suffisante pour czech (`read_char` = n'importe quelle
+touche) mais **PAS pour la saisie ligne** `@sread`/`@aread` d'un vrai jeu (taper des mots).
+Reconstruite intégralement comme **inverse de `char_map`** (`~/Oric1/src/io/keyboard.c`,
+matrice 8 col × 8 lignes, dérivée des tables ROM `$FF70`/`$FFB0`) :
+- **26 lettres** en minuscules (les jeux Z-machine saisissent en minuscule ; écran Oric
+  en ASCII standard), 10 chiffres, espace, ponctuation.
+- **RETURN** (col7,row5) → `$0d` (13) : caractère terminateur de `read_text`.
+- **DELETE** (col5,row5) → `$08` (8) : touche delete attendue par Ozmoo (`read_text`).
+- `$00` sur les modificateurs (SHIFT/CTRL/FUNCT row4), flèches (col4), ESC (col1,row5).
+
+Le chemin saisie ligne est ainsi complet au niveau composant : `read_text` (text.asm)
+→ `read_char` → `getchar_and_maybe_toggle_darkmode` → `kernal_getchar` (anti-rebond) →
+`read_key` (table complète) ; écho via `s_printchar` (validé) ; Enter=13 termine ;
+delete=8 efface.
+
+### Tests
+- **`test-oric/kbd_table_test.sh`** (nouveau) : injecte 18 touches via `--type-keys` →
+  `read_key` (harnais brut `kbd_read.asm`) doit renvoyer l'ASCII attendu. Couvre
+  chiffres, 12 lettres, espace, RETURN=13, DEL=8 → **PASS**. `kernal_getchar` (chemin
+  réel avec anti-rebond) vérifié pour 'a'/'n' séparément.
+- Non-régression VMEM disque : **czech.z3 349/0** (le module clavier est dans le build).
+
+### Limite (honnêteté)
+- Validé au niveau **composant** (read_key/kernal_getchar renvoient les bons codes). Le
+  cycle complet `@sread` (écho ligne + Enter + tokenisation dictionnaire + parsing) n'est
+  **pas** testé bout-en-bout faute de story interactive compilable (pas d'Inform 6 dispo ;
+  czech/oztest = read_char, pas de saisie ligne). À revalider sur un vrai jeu V5.
+
 ## [0.30.0] - 2026-08-13 — ★★★ V5 EN VMEM : czech.z5 PASSE 406/0 DEPUIS LE DISQUE ★★★
 ### L'objectif du projet — interpréteur V5 paginé sur Oric — est DÉMONTRÉ
 La version **V5** du testeur de conformité (`czech.z5`) tourne de bout en bout en VMEM
