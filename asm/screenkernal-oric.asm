@@ -196,30 +196,79 @@ scl_2	sta $bf80-1,x
 	bne scl_2
 	rts
 
-; --- s_scroll_oric : remonte lignes 1..27 -> 0..26, efface ligne 27 ---------
+; --- s_scroll_oric : scrolle la fenetre basse d'UNE ligne en PROTEGEANT les
+;     window_start_row+1 lignes du haut (status-line V3 = row 0). Deplace les lignes
+;     [protect+1 .. height-1] vers [protect .. height-2] puis efface la derniere.
+;     Avant : scrollait TOUT l'ecran (row 0 comprise) -> la status-line etait scrollee
+;     et le modele de fenetres desynchronise -> lignes dupliquees au scroll. Code
+;     auto-modifiant (les adresses src/dst sont patchees) pour ne pas toucher la ZP.
 s_scroll_oric
-	ldx #0
-sso_1	lda $bba8,x
-	sta $bb80,x
-	lda $bba8+256,x
-	sta $bb80+256,x
-	lda $bba8+512,x
-	sta $bb80+512,x
-	lda $bba8+768,x
-	sta $bb80+768,x
-	inx
-	bne sso_1
-	ldx #0
-sso_2	lda $bba8+1024,x
-	sta $bb80+1024,x
-	inx
-	cpx #56
-	bne sso_2
-	lda #$20
-	ldx #40
-sso_3	sta SCR_LAST-1,x
+	; dst = SCR_BASE + protect*40
+	lda #<SCR_BASE
+	sta sso_st + 1
+	lda #>SCR_BASE
+	sta sso_st + 2
+	ldx window_start_row + 1        ; nb lignes protegees (0 = scroll plein ecran)
+	beq sso_ptr_ok
+sso_addprot
+	clc
+	lda sso_st + 1
+	adc #40
+	sta sso_st + 1
+	bcc sso_np
+	inc sso_st + 2
+sso_np
 	dex
-	bne sso_3
+	bne sso_addprot
+sso_ptr_ok
+	; src = dst + 40 (ligne du dessous)
+	clc
+	lda sso_st + 1
+	adc #40
+	sta sso_ld + 1
+	lda sso_st + 2
+	adc #0
+	sta sso_ld + 2
+	; nb lignes a deplacer = height - protect - 1
+	lda s_screen_height
+	sec
+	sbc window_start_row + 1
+	sbc #1
+	tax
+sso_line
+	ldy #39
+sso_byte
+sso_ld	lda $ffff,y                     ; source (adresse patchee)
+sso_st	sta $ffff,y                     ; destination (adresse patchee)
+	dey
+	bpl sso_byte
+	clc                             ; dst += 40
+	lda sso_st + 1
+	adc #40
+	sta sso_st + 1
+	bcc sso_d2
+	inc sso_st + 2
+sso_d2
+	clc                             ; src += 40
+	lda sso_ld + 1
+	adc #40
+	sta sso_ld + 1
+	bcc sso_s2
+	inc sso_ld + 2
+sso_s2
+	dex
+	bne sso_line
+	; effacer la derniere ligne (sso_st pointe dessus)
+	lda sso_st + 1
+	sta sso_cl + 1
+	lda sso_st + 2
+	sta sso_cl + 2
+	lda #$20
+	ldy #39
+sso_clr
+sso_cl	sta $ffff,y
+	dey
+	bpl sso_clr
 	rts
 
 ; --- routines de support (stubs pour premier affichage ; a etoffer) ---------

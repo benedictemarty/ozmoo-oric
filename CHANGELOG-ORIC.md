@@ -3,6 +3,26 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.34.0] - 2026-08-13 — Affichage : scroll respecte la status-line (fin des lignes dupliquées)
+### L'artefact de duplication au scroll est corrigé
+Les longues lignes word-wrappées s'affichaient **en double** après un scroll (préfixe
+partiel + ligne complète, ex. `Infocom...a LAXY` / `Infocom...a science` ; `You wake` /
+`You wake up...`). Diagnostic : **`s_scroll_oric` scrollait TOUT l'écran, y compris la
+status-line (row 0)** — ce que le modèle de fenêtres V3 d'Ozmoo n'attend pas (la status
+est l'« upper window », fixe). La status-line scrollée puis redessinée désynchronisait le
+comptage de lignes → une ligne parasite insérée à chaque scroll. Confirmé empiriquement :
+texte PROPRE avant le 1er scroll, dupliqué juste après.
+### Fix (`screenkernal-oric.asm`)
+`s_scroll_oric` **protège désormais `window_start_row + 1` lignes du haut** (= 1 en V3, la
+status-line) : il déplace les lignes `[protect+1 .. height-1]` → `[protect .. height-2]`
+et efface la dernière, laissant la row 0 intacte (comme le `.s_scroll` du C64 qui protège
+`window_start_row + 1` lignes). Réécrit en code auto-modifiant (adresses src/dst patchées)
+pour ne pas toucher la page zéro. Résultat : **intro HHGG et descriptions de salle
+s'affichent proprement**, sans duplication, status-line fixe.
+### Tests
+- Non-régression VMEM : **czech.z3 349/0, czech.z5 406/0** (czech scrolle beaucoup).
+- **hhgg_play_test.sh** PASS ; vérif manuelle intro + description de chambre = texte net.
+
 ## [0.33.0] - 2026-08-13 — Saisie ligne : Backspace/Delete efface à l'écran
 ### Effacement visuel de la saisie corrigé
 La touche **Backspace ou Delete** (toutes deux mappées sur le DEL Oric col5/row5 → ASCII 8
