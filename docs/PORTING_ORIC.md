@@ -73,6 +73,13 @@ cas (lecture de l'en-tête Z, offset $0E = base static memory).
 - **Temps/timer** : `kernal_settime/readtime`, `kernal_delay_1ms` (VIA 6522).
 - **Mémoire/banking** : `basic_reset`, `kernal_reset`, `first_banked_memory_page`,
   reloger `print_buffer`/`memory_buffer` hors pile/zones réservées.
+  - ⚠️ **Carte des buffers (leçon v0.29.0)** : les buffers Ozmoo bas (`print_buffer2`
+    $0200, `keyboard_buff` $0277, `key_repeat`, `charset_switchable`, `memory_buffer`
+    $02a7) NE doivent PAS chevaucher le **`vmap_buffer`** (VMEM). Placé un temps à $0200
+    (page $02), il était écrasé par `print_buffer2` à chaque impression → blocs mal
+    mappés → z_pc lisait le mauvais code (7 échecs czech). Vmap relogé en **RAM haute
+    libre `$B000-$B0CC`** : zone `$A600-$B3FF` (au-dessus des blocs VMEM non-bankés
+    `$3E00..$A5FF`, sous le charset Oric `$B400`/`$B800`).
 
 ### EPIC 2 — Sortie écran (afficher du texte) *(en cours)*
 - [x] **Pipeline de test bout-en-bout prouvé** : ACME → `bin2tap` → Phosphoric

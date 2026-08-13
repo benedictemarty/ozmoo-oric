@@ -3,6 +3,50 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.29.0] - 2026-08-13 — ★★★ czech PASSE 349/0 EN VMEM DEPUIS LE DISQUE ★★★
+### Les 7 échecs VMEM résolus — la pagination disque est PARFAITE
+czech.z3 rend désormais **`Performed 368 tests. Passed: 349, Failed: 0. Didn't crash:
+hooray!`** en VMEM depuis la disquette Sedoric — **identique à la voie B tape**. Le
+verdict passe de 337/7 (v0.28.0) à **349/0**, et 368 tests s'exécutent (vs 363 : les
+5 tests objets qui déraillaient tournent maintenant).
+
+### Cause racine : collision `vmap_buffer` ↔ `print_buffer2` (page $02)
+La relocalisation du vmap en page $02 (fix #3 de v0.28.0) l'avait placé **à $0200,
+PILE sur `print_buffer2`** (buffer de ligne écran) — ainsi que sur `keyboard_buff`
+($0277), `key_repeat`, `charset_switchable`. Conséquence : `print_line_from_buffer`
+**écrasait le vmap à CHAQUE impression de texte**. Une fois le vmap corrompu, les
+faults suivants mappaient les blocs statiques sur de **mauvaises pages RAM** →
+`z_pc` lisait le mauvais bloc → **opcodes erronés exécutés** (ex. un `insert_obj
+Obj4 Obj1` décodé et exécuté *pendant la section Jumps*, corrompant l'arbre d'objets
+que les tests get_parent/get_sibling/get_child/jin lisent ensuite). D'où les 7 échecs
+**tous dans la section OBJECTS** (et non « high memory » comme supposé) :
+[145],[151],[152],[156],[164],[165],[213].
+
+### Correctif
+- **`constants-oric.asm`** : `vmap_buffer` relocalisé de `$0200` (page $02, surchargée)
+  vers **`$B000-$B0CC` (RAM haute libre)** — au-dessus de la zone des blocs VMEM
+  non-bankés (`vmap_first_ram_page=$3E` .. `+2*vmap_max_entries=$A5`) et **sous le jeu
+  de caractères matériel Oric** (`CHARSET_STANDARD=$B400`, `CHARSET_ALT=$B800`). Zone
+  `$A600-$B3FF` prouvée libre (aucun symbole, hors blocs VMEM et charset).
+
+### Méthode (diagnostic outillé, sans deviner)
+- Repro + capture des 7 `ERROR [n] Expected X; got Y` par **screenshots périodiques**
+  (`test-oric/vmem_disk_run.sh`). Décodage de la table d'objets de czech.z3 → les
+  valeurs « got » = objets voisins (décalage).
+- **Bisection temporelle** par `--dump-ram-at` : dynmem PARFAITE à 20M, table objets
+  corrompue dès 34M (section Jumps) selon le pattern EXACT d'un `insert_obj`.
+- **Trace CPU** (`-b 29e3 --trace-ring`) : la boucle de dispatch normale décode un vrai
+  `insert_obj 8 5` depuis `(z_pc_mempointer),y` → z_pc pointait le mauvais bloc.
+- Dump du **vmap** ($0200) : valait `05..14` après init, tout à zéro après impression →
+  isolé à la collision `print_buffer2`. Hypothèse « raccourci z_pc EOR #1 » **écartée**
+  par test (flag debug `ORIC_NO_ZPC_SHORTCUT` : échecs inchangés).
+
+### Tests
+- **VMEM disque** : `test-oric/vmem_disk_run.sh` (build VMEM + `build_game_disk` + run
+  headless Sedoric+Microdisc + assertion `PASSED: 349, FAILED: 0`) → **PASS**.
+- **Non-régression voie B** (non-VMEM tape) : `czech_test.sh` → **PASS 349/0** (le vmap
+  n'existe qu'en build VMEM ; la relocalisation n'affecte pas le non-VMEM).
+
 ## [0.28.0] - 2026-08-13 — ★★ JALON : czech TOURNE EN VMEM DEPUIS LE DISQUE ★★
 ### Le cœur du projet est démontré
 czech.z3 s'exécute **de bout en bout en VMEM** sur Oric+Sedoric : la z-machine pagine

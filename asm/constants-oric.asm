@@ -116,13 +116,18 @@ memory_buffer_length  = 89
 
 ; Buffers VMEM (pagination disque). >>> PORT : placer en zone RAM libre Oric.
 directory_buffer      = $0400 ; >>> PORT TODO
-; Sur C64 le vmap est en $0334 (buffer cassette libre), MAIS sur l'Oric la page $03
-; est la PAGE SYSTÈME (I/O VIA/Microdisc $0300-$031F + workspace ROM/Sedoric au-dessus)
-; → collision qui écrasait le vmap (aucun bloc statique chargé, readblock bouclait).
-; Relocalisé en page $02 (libre une fois l'interpréteur maître : SEI, plus d'appel ROM).
-; $0200-$02CC = 102 entrées (2 o/entrée).
-vmap_buffer_start     = $0200
-vmap_buffer_end       = $02CC
+; Sur C64 le vmap est en $0334 (buffer cassette libre). Historique du portage Oric :
+;  - page $03 = PAGE SYSTÈME (I/O VIA/Microdisc + workspace ROM/Sedoric) → écrasait le vmap.
+;  - page $02 (essai v0.28.0) : COLLISION avec print_buffer2 ($0200), keyboard_buff ($0277),
+;    key_repeat, charset_switchable → print_line_from_buffer écrasait le vmap à CHAQUE
+;    impression de texte → faults suivants mal mappés → z_pc lisait le mauvais bloc →
+;    opcodes erronés (ex. insert_obj pendant Jumps) → 7 échecs czech en high memory.
+; Relogé en RAM HAUTE LIBRE : au-dessus de la zone des blocs VMEM non-bankés
+;  (vmap_first_ram_page=$3E .. +2*vmap_max_entries($34)=$A5), sous le jeu de caractères
+;  matériel Oric (CHARSET_STANDARD=$B400, CHARSET_ALT=$B800). $B000-$B0CC = 102 entrées,
+;  zone $A600-$B3FF prouvée libre (aucun symbole, hors blocs VMEM et charset).
+vmap_buffer_start     = $B000
+vmap_buffer_end       = $B0CC
 CURRENT_DEVICE        = $00   ; >>> PORT : notion de "device" Sedoric
 
 ; --- Symboles complementaires (placeholders de portage) ----------------------
