@@ -1,3 +1,13 @@
+> ### 🖥️ Portage ORIC-1 / Atmos
+> Ce dépôt est un **portage d'Ozmoo vers l'ORIC-1 / Atmos** (Microdisc + Sedoric),
+> sur la branche **`oric-port`**. Jeux Z-machine **V3 et V5** en mémoire virtuelle
+> depuis la disquette — *The Hitchhiker's Guide to the Galaxy* (111 Ko) y est jouable.
+> 👉 **Voir [README-ORIC.md](README-ORIC.md)**, le [CHANGELOG-ORIC.md](CHANGELOG-ORIC.md)
+> et [docs/PORTING_ORIC.md](docs/PORTING_ORIC.md).
+> Le README d'Ozmoo d'origine suit ci-dessous.
+
+---
+
 # Ozmoo
 
 *Ozmoo (spell): survive unnatural death*

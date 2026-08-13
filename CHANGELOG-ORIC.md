@@ -3,6 +3,14 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.34.1] - 2026-08-13 — Doc : README du portage (dépôt public)
+- **`README-ORIC.md`** : présentation du portage ORIC (état, architecture, build & run,
+  tests, limitations, licence/crédits Ozmoo).
+- **`README.md`** : bannière en tête pointant vers le README de portage (visible sur la
+  page d'accueil GitHub), README Ozmoo d'origine préservé en dessous.
+- Publication du dépôt : `benedictemarty/ozmoo-oric` (public, branche par défaut
+  `oric-port`), `upstream` = `johanberntsson/ozmoo`.
+
 ## [0.34.0] - 2026-08-13 — Affichage : scroll respecte la status-line (fin des lignes dupliquées)
 ### L'artefact de duplication au scroll est corrigé
 Les longues lignes word-wrappées s'affichaient **en double** après un scroll (préfixe
