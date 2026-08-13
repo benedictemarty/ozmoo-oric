@@ -293,15 +293,41 @@ système que l'EPROM valide + séquence de chargement + adresse de saut), ce qui
 nettement plus lourd qu'anticipé. Détails encore **inconnus** (à ne pas inventer) :
 la signature exacte validée, la séquence de chargement DOS et l'adresse de handoff final.
 
-**Options** (à re-trancher avec l'utilisateur au vu de ce couplage) :
-1. **Boot maison intégral** : désassembler le parseur de secteur système de l'EPROM
-   (zone `$E8xx` autour de `LDA $C033,x`) pour établir le contrat minimal, puis forger un
-   secteur système « juste assez Sedoric » qui charge notre interpréteur et y saute.
-   Le plus fidèle à « disque brut », mais reverse-engineering ROM conséquent.
-2. **Bootstrap Sedoric minimal** : injecter l'interpréteur comme **fichier AUTO** Sedoric
-   (`sedoric_inject.py`, déjà validé) ; Sedoric n'amorce QUE le chargement de l'interp,
-   qui prend ensuite tout le contrôle et lit la story en **secteurs bruts** via son propre
-   `read_track_sector` (VMEM). Faible risque, entièrement outillé.
+**Voie retenue (décision utilisateur)** : **Bootstrap Sedoric minimal**. On injecte
+l'interpréteur comme **fichier AUTO** Sedoric (`sedoric_inject.py`, déjà validé) ; Sedoric
+n'amorce QUE le chargement de l'interp, qui prend ensuite **tout le contrôle** et lit la
+story en **secteurs bruts** via son propre `read_track_sector` (VMEM). Faible risque,
+entièrement outillé, compatible vrai matériel. *(L'alternative « boot maison intégral »
+— forger un secteur système leurrant le protocole EPROM — est écartée : reverse-engineering
+ROM conséquent pour un gain marginal.)*
+
+**Pipeline cible (disque Sedoric + story brute, à construire) :**
+1. Partir d'un disque **Sedoric bootable brut** (2×42×17×256).
+2. **Fichier AUTO** = interpréteur VMEM (`build-oric.sh`, padé jusqu'à `story_start=$3000`)
+   **+ dynmem** (`<story>.dynmem`, chargé à $3000) ; `sedoric_inject.py` load=$500 exec=$500
+   + INIST autoexec. Sedoric charge et lance l'interp au boot.
+3. **Story en secteurs bruts** (`oric_disk.py`) sur des pistes que Sedoric **ne peut pas
+   réallouer** → à **réserver dans le bitmap Sedoric** (comme make.rb réserve dans le BAM
+   C64). Éviter la **piste système Sedoric** (piste 20) et les pistes du fichier AUTO.
+4. **Piste config** `CONF_TRK` (déjà produite par `oric_disk.py`) sur une piste réservée.
+5. Convertir l'image brute → MFM (`dsk_raw2mfm.py`) ; booter (`--disk-rom microdis.rom
+   -d img.dsk`) → Sedoric → AUTO interp → **1re exécution VMEM** (story faulte du disque).
+
+✅ **Coexistence résolue (analyse `sedoric_inject.py`/`sedoric_mkbare.py`)** : le layout
+Sedoric est **simple à cohabiter** :
+- **Piste 20** = piste système Sedoric (sec 1 = secteur système + INIST autoexec ;
+  sec 2 = VTOC/bitmap ; sec 4 = directory).
+- **Pistes 21+** = zone d'allocation des fichiers : `sedoric_inject.py` alloue **à partir
+  de la piste 21, secteur 1**, en montant (saute la piste 20). Le fichier AUTO interpréteur
+  (~15 Ko ≈ 4 pistes) occupe donc ≈ pistes 21-24.
+- **Pistes 1-19 = LIBRES** → réservées à nos **secteurs bruts** (story + piste config).
+  `oric_disk.py` place déjà la story dès la piste 1 → **aucune collision** pour un petit
+  jeu (czech = 42 blocs ≈ 3 pistes). L'interp n'accède JAMAIS la story via Sedoric : il
+  utilise son propre `read_track_sector` (raw). Le disque étant construit une fois et
+  lu seul, pas besoin de marquer les secteurs story dans le bitmap (rien n'écrit après).
+- **Gros V5** (~100 Ko) : la story débordera des pistes 1-19 → l'étendre sur pistes 25-41
+  + **face 1** (déjà prévu : `read_track_sector` à étendre pour piste>41), en évitant
+  20 et la zone interp. Optimisation ultérieure ; sans objet pour la 1re preuve.
 
 - [ ] Faire tourner un jeu **V3** (parité Pinforic) sur Phosphoric
 - [ ] Faire tourner un jeu **V5** (objectif final)
