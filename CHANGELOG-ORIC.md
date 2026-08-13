@@ -3,6 +3,43 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.24.0] - 2026-08-13 — EPIC 5 voie A : couche VMEM (dynmem + vmem_data)
+### Analyse (chemin boot VMEM Oric tranché)
+- **La build VMEM assemble déjà** (`build-oric.sh`, exit 0, 12032 o) et les symboles se
+  résolvent pour l'Oric : `config_load_address = vmem_cache_start = $2800` (RAM),
+  `story_start = $3000`, `SCREEN_ADDRESS = $bb80`. Le chemin boot `deletable_init`
+  (L2241-2276) est **générique** : il lit la piste config via `read_track_sector` (porté),
+  reconstruit `disk_info`, `auto_disk_config`. `read_track_sector` **ignore le device**
+  (mono-lecteur) → la valeur de `boot_device` (issue de `CURRENT_DEVICE`) est sans impact.
+- **Blocage identifié & résolu (côté outils)** : en VMEM, `load_suggested_pages` charge
+  les pages **statiques** depuis le disque, mais la **mémoire dynamique** (`nonstored_pages`,
+  résidente à `story_start`) est chargée **séparément** — sur C64 via le boot-file
+  préchargé. Sur Oric (chargement tape), il faut donc **tape = interpréteur + dynmem** ;
+  les pages statiques faultent ensuite du disque via `readblocks`→`readblock`→WD1793.
+
+### Ajouté (`tools/oric_disk.py`)
+- **`story_vmem_layout()`** : calcule depuis l'en-tête Z-machine (`header_static_mem`,
+  offset $0e/$0f) `nonstored_pages` (repro fidèle de `calc_dynmem_size`), `dynmem_blocks`
+  (=nonstored/2) et `total_blocks` (512 o). Ex. czech.z3 : dynmem=10 pages (blocs 0-4),
+  statiques 5-20.
+- **`build_vmem_data()`** : port de make.rb (~L3517) — suggère TOUS les blocs statiques
+  (0 préchargé) pour chargement au boot par `load_suggested_pages`. Format
+  `[len_hi, len_lo, nb_sug, nb_pré] + octets-hauts + octets-bas`.
+- **`story_dynmem_prefix()`** : octets de dynmem à charger à `story_start` via tape.
+- `build_bootable_disk()` calcule et écrit le `vmem_data` réel dans la piste config ;
+  la CLI émet aussi `<out>.dynmem` (préfixe dynmem pour la tape).
+
+### Tests
+- **`_vmem_layout_test()` : 4 profils VMEM** (dont czech.z3) — `nonstored_pages`/
+  `dynmem_blocks` corrects, `vmem_data` bien formé (compteurs, longueur, octets-bas =
+  blocs statiques), préfixe dynmem = nonstored_pages, config complète ≤ 512 o. Les 4
+  tests précédents (2092/600/4352/1200 blocs) inchangés (PASS).
+
+### Reste voie A (run réel)
+- Assembler la tape VMEM = interpréteur + `.dynmem` à `story_start` ; convertir l'image
+  en MFM (`dsk_raw2mfm.py`) ; booter tape+disque dans Phosphoric → **1re exécution VMEM**
+  (les blocs statiques 5-20 doivent faulter du disque via WD1793).
+
 ## [0.23.0] - 2026-08-13 — EPIC 5 voie A : piste de config + chaîne de boot simulée
 ### Ajouté
 - **`oric_disk.py build_config_track_bytes()`** : sérialise la piste de config (≤ 512 o,

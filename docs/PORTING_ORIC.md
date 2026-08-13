@@ -235,7 +235,16 @@ constructeur de disque. Découpage :
    à faire assembler/tourner ce chemin sous `TARGET_ORIC` (définir `config_load_address`
    et `boot_device` pour l'Oric ; vérifier `auto_disk_config`).
 3. **Boot loader** : charger l'interpréteur (tape) + init `disk_info` → 1re exécution VMEM.
-   *Écriture image finale en MFM Oric via `~/Oric1/tools/dsk_raw2mfm.py`.*
+   ✅ **Chemin boot assemble & analysé (v0.24.0)** : la build VMEM (`build-oric.sh`) sort
+   exit 0 (12032 o) ; `config_load_address=$2800` (RAM), `story_start=$3000`. Le code
+   `deletable_init` L2241-2276 lit la piste config via `read_track_sector` (porté ;
+   device ignoré). **Blocage tranché** : `load_suggested_pages` charge les pages
+   **statiques** depuis le disque, mais la **dynmem** (`nonstored_pages`, résidente) est
+   chargée à part (boot-file C64). Sur Oric ⇒ **tape = interpréteur + dynmem** ; le reste
+   faulte du disque. `oric_disk.py` fournit désormais `story_vmem_layout()`,
+   `build_vmem_data()` (suggère tous les blocs statiques), `story_dynmem_prefix()`
+   (`<out>.dynmem`). Reste : assembler la tape VMEM (interp + dynmem à `story_start`),
+   convertir l'image en MFM (`dsk_raw2mfm.py`), booter tape+disque dans Phosphoric.
 
 ✅ **Finding (harnais readblock standalone) — RÉSOLU en Python (v0.22.0)** : `readblock`
 ne trouve la bonne piste que si `.blocks_to_go` est réordonné en big-endian par un passage

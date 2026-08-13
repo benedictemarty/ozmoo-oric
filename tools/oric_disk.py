@@ -303,6 +303,49 @@ def raw_offset(side, track, sector, sectors_per_track=SEDORIC_SECTORS):
 # game_id ← [+0..3] ; on copie (taille-1) octets depuis +5 vers disk_info (donc
 # disk_info+0 = interleave). `read_track_sector` (WD1793, porté) fait la lecture.
 
+# --- Analyse VMEM de la story (dynmem + liste des blocs statiques) ------------
+# vmem_blocksize = 512 (2 pages). Pour Z3, vmem_highbyte_mask = 0 (≤ 256 blocs).
+VMEM_BLOCKSIZE = 512
+
+
+def story_vmem_layout(story_bytes):
+    """Calcule, depuis l'en-tête Z-machine, la découpe VMEM d'une story :
+      - nonstored_pages : pages (256 o) de mémoire DYNAMIQUE, résidentes en RAM
+        (repro fidèle de calc_dynmem_size, ozmoo.asm L1537-1575) ;
+      - dynmem_blocks   : blocs de 512 o couverts par la dynmem (= nonstored/2) ;
+      - total_blocks    : blocs de 512 o de toute la story.
+    Les blocs statiques dynmem_blocks..total_blocks-1 sont ceux qui faultent du disque."""
+    static_mem = (story_bytes[0x0e] << 8) | story_bytes[0x0f]  # header_static_mem
+    pages = static_mem >> 8
+    if static_mem & 0xff:
+        pages += 1
+    if pages & 1:               # aligne sur un bloc de 512 (2 pages) entier
+        pages += 1
+    nonstored_pages = pages
+    dynmem_blocks = nonstored_pages // 2
+    total_blocks = (len(story_bytes) + VMEM_BLOCKSIZE - 1) // VMEM_BLOCKSIZE
+    return nonstored_pages, dynmem_blocks, total_blocks
+
+
+def story_dynmem_prefix(story_bytes):
+    """Octets de mémoire dynamique à charger à story_start (via tape, comme le
+    boot-file C64 : interpréteur + dynmem). = les nonstored_pages premières pages."""
+    nonstored_pages, _, _ = story_vmem_layout(story_bytes)
+    return story_bytes[:nonstored_pages * 256]
+
+
+def build_vmem_data(dynmem_blocks, total_blocks, preloaded=0, highbyte_mask=0x00):
+    """Construit `vmem_data` (liste, port de make.rb ~L3517) : suggère TOUS les blocs
+    statiques (dynmem_blocks..total_blocks-1) pour chargement au boot par
+    load_suggested_pages, `preloaded` déjà en RAM (0 = tout vient du disque).
+    Format : [len_hi, len_lo, nb_suggérés, nb_préchargés] + octets-hauts + octets-bas."""
+    blocks = list(range(dynmem_blocks, total_blocks))
+    total_len = 4 + 2 * len(blocks)
+    highs = [(b >> 8) & highbyte_mask for b in blocks]
+    lows = [b & 0xff for b in blocks]
+    return [total_len >> 8, total_len & 0xff, len(blocks), preloaded] + highs + lows
+
+
 def build_config_track_bytes(game_id, disk_info_full, vmem_data=None):
     """Sérialise la piste de config (max 512 o = 2 secteurs). `game_id` = 4 octets,
     `disk_info_full` = sortie de build_full_disk_info, `vmem_data` = liste (défaut :
@@ -331,6 +374,10 @@ def build_bootable_disk(story_bytes, geo: Geometry, game_id, config_track=1,
     raw = bytearray(raw)
     disk_info_full = build_full_disk_info(p.config_track_map, device=device,
                                           interleave=geo.interleave)
+    if vmem_data is None:
+        # vmem_data réel : suggère tous les blocs statiques (dynmem exclue), 0 préchargé.
+        _, dynmem_blocks, total_blocks = story_vmem_layout(story_bytes)
+        vmem_data = build_vmem_data(dynmem_blocks, total_blocks)
     config_bytes = build_config_track_bytes(game_id, disk_info_full, vmem_data)
     # écrit la config sur les 2 premiers secteurs (0-based) de config_track
     padded = bytes(config_bytes) + bytes(512 - len(config_bytes))
@@ -460,6 +507,41 @@ def _bootable_disk_test():
     return checks
 
 
+def _vmem_layout_test():
+    """Vérifie la découpe VMEM sur des cas connus (czech.z3) + cohérence du vmem_data :
+    nb suggérés = total_blocks - dynmem_blocks, format et longueur corrects, et la
+    config complète (game_id+disk_info+vmem_data) tient dans 2 secteurs (512 o)."""
+    # cas synthétiques : (static_mem, taille_story) -> (nonstored_pages, dynmem_blocks)
+    # static_mem 0x819=2073 -> 9 pages brut, arrondi pair 10 -> 5 blocs de 512.
+    cases = [
+        (0x0819, 21 * 512, 10, 5),   # profil czech.z3
+        (0x0800, 16 * 512, 8, 4),    # dynmem pile 8 pages (pair)
+        (0x0700, 10 * 512, 8, 4),    # 7 pages brut -> 8 (arrondi pair)
+        (0x0101, 4 * 512, 2, 1),     # 257 o -> 2 pages
+    ]
+    for static_mem, size, exp_ns, exp_db in cases:
+        story = bytearray(size)
+        story[0x0e], story[0x0f] = static_mem >> 8, static_mem & 0xff
+        ns, db, tb = story_vmem_layout(bytes(story))
+        assert (ns, db) == (exp_ns, exp_db), \
+            f"static={static_mem:#x}: ({ns},{db}) != ({exp_ns},{exp_db})"
+        vd = build_vmem_data(db, tb)
+        nsug = tb - db
+        assert vd[2] == nsug and vd[3] == 0, "compteurs vmem_data incorrects"
+        assert len(vd) == 4 + 2 * nsug, "longueur vmem_data incorrecte"
+        assert (vd[0] << 8 | vd[1]) == 4 + 2 * nsug, "en-tête longueur vmem_data incorrect"
+        # octets-bas = indices de blocs statiques db..tb-1
+        assert vd[4 + nsug:] == list(range(db, tb)), "octets-bas vmem_data incorrects"
+        # dynmem prefix = ns pages
+        assert len(story_dynmem_prefix(bytes(story))) == ns * 256, "préfixe dynmem faux"
+        # config complète tient dans 2 secteurs
+        di = build_full_disk_info([64 * (2 // 2) + 15, 17, tb - 32 if tb > 32 else 3])
+        cfg = build_config_track_bytes([0, 0, 0, 0], di, vd)
+        assert len(cfg) <= 512, f"config {len(cfg)} > 512 o"
+    print(f"OK: {len(cases)} profils VMEM (dynmem/vmem_data/préfixe/config ≤512) vérifiés")
+    return len(cases)
+
+
 def disk_info_bytes(info, name_bytes=None):
     """Sérialise l'entrée disk_info (comme make.rb build_S1) :
     [taille, device, lastblock+1_hi, lastblock+1_lo, nbpistes] + octets/piste + nom(6)."""
@@ -484,7 +566,12 @@ def _cli(argv):
                             config_sectors=2, interleave=interleave)
     raw, di_full, p, cfg = build_bootable_disk(story, geo, list(game_id), config_track=1)
     open(argv[2], "wb").write(raw)
+    ns, db, tb = story_vmem_layout(story)
+    dynmem = story_dynmem_prefix(story)
+    open(argv[2] + ".dynmem", "wb").write(dynmem)
     di = disk_info_bytes(build_disk_info_entry(p.config_track_map))
+    print(f"VMEM: dynmem={ns} pages ({len(dynmem)}o, blocs 0..{db-1}) -> {argv[2]}.dynmem ; "
+          f"blocs statiques {db}..{tb-1} ({tb-db}) faultent du disque")
     print(f"story={len(story)}o -> {len(p.blocks)} blocs, image brute {len(raw)}o -> {argv[2]}")
     print(f"1ers blocs (bloc->piste,secteur): "
           + ", ".join(f"{n}->{p.blocks[n]}" for n in range(min(6, len(p.blocks)))))
@@ -504,3 +591,4 @@ if __name__ == "__main__":
     _disk_data_test()
     _full_disk_info_test()
     _bootable_disk_test()
+    _vmem_layout_test()
