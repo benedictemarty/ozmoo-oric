@@ -88,15 +88,22 @@ def _catalog_used(raw, tracks, sectors, side=0):
     return used
 
 
-def _geometry(tracks, sectors, first_track, config_sectors=2):
+def _geometry(tracks, sectors, first_track, config_sectors=2, skip_tracks=()):
     """Géométrie où les pistes 1..first_track-1 sont RÉSERVÉES (le DOS Sedoric occupe
     les pistes basses hors catalogue — écrire dessus casse le LOAD), la story commence
-    à `first_track` avec `config_sectors` réservés pour la piste de config."""
+    à `first_track` avec `config_sectors` réservés pour la piste de config.
+    `skip_tracks` : pistes supplémentaires réservées EN MILIEU de zone story (piste
+    système Sedoric 20 + pistes du fichier interpréteur AUTO) — place_story les saute
+    et readblock aussi (octet disk_info = 0 => .next_track). Permet un GROS jeu dont la
+    story s'étale au-delà de la piste système/interp (ex. HHGG : 15-19 + 27..)."""
     tl = [0] + [sectors] * (tracks - 1)
     rs = [0] * tracks
     for t in range(1, first_track):
         rs[t] = sectors                        # piste pleine = sautée par place_story
     rs[first_track] = config_sectors           # piste config = story - 2 secteurs
+    for t in skip_tracks:                       # système + interp = pleines (sautées)
+        if 0 <= t < tracks:
+            rs[t] = sectors
     return od.Geometry(track_length=tl, reserved_sectors=rs, interleave=0)
 
 
@@ -130,18 +137,34 @@ def build(master, interp_bin, story_path, out_dsk, name="OZMOO",
     nonstored_pages, dynmem_blocks, total_blocks = od.story_vmem_layout(story)
     story_static = story[nonstored_pages * SECSZ:]
     nblocks = (len(story_static) + SECSZ - 1) // SECSZ
-    # Story sur les pistes HAUTES libres : les pistes basses (≈1-6) sont réservées
-    # au DOS Sedoric hors catalogue (test : écraser la piste 1 casse le boot ; les
-    # pistes 15+ sont sûres). `conf_trk` = 1re piste story (doit == -DCONF_TRK du build).
-    geo = _geometry(tracks, sectors, first_track=conf_trk)
+
+    # Empreinte du fichier interpréteur AUTO (interp + dynmem) : sedoric_inject l'alloue
+    # À PARTIR de la piste 21, contigu (hors catalogue). On calcule les pistes qu'il
+    # occupera pour les RÉSERVER (avec la piste système 20) → la story les saute. Permet
+    # un GROS jeu dont la story s'étale au-delà (ex. HHGG : pistes 15-19 puis 27..).
+    INTERP_START_TRACK, DIR_TRACK = 21, 20
+    auto_size = len(interp) + nonstored_pages * SECSZ
+    ndata = (auto_size + SECSZ - 1) // SECSZ
+    FIRST_CAP, CONT_CAP = (SECSZ - 12) // 2, (SECSZ - 2) // 2   # cf. sedoric_inject
+    ndesc = 1 if ndata <= FIRST_CAP else 1 + -(-(ndata - FIRST_CAP) // CONT_CAP)
+    interp_sectors = ndesc + ndata
+    interp_last_track = INTERP_START_TRACK + (interp_sectors - 1) // sectors
+    skip = {DIR_TRACK} | set(range(INTERP_START_TRACK, interp_last_track + 1))
+
+    # Story sur les pistes HAUTES libres : pistes basses (≈1-14) réservées au DOS,
+    # piste système 20 + pistes du fichier interp réservées (sautées). `conf_trk` = 1re
+    # piste story/config (doit == -DCONF_TRK du build).
+    geo = _geometry(tracks, sectors, first_track=conf_trk, skip_tracks=skip)
     p = od.place_story(nblocks, geo)
     if len(p.blocks) < nblocks:
         sys.exit(f"story trop grande : {len(p.blocks)}/{nblocks} blocs placés")
     story_tracks = sorted(set(t for (t, s) in p.blocks) | {conf_trk})
     last_story_track = max(story_tracks)
-    if last_story_track >= 20:
-        sys.exit(f"story déborde sur piste système/interp (piste {last_story_track} >= 20) "
-                 "— gros jeu : builder à étendre (faces/pistes hautes)")
+    print(f"interp AUTO ~{interp_sectors} sect -> pistes {INTERP_START_TRACK}-{interp_last_track} "
+          f"(réservées) ; piste système {DIR_TRACK} sautée")
+    if last_story_track >= tracks:
+        sys.exit(f"story déborde la face 0 (piste {last_story_track} >= {tracks} pistes) "
+                 "— nécessite la face 1 (read_track_sector à étendre pour side 1)")
     # sécurité : les pistes story/config doivent être LIBRES (sinon on écraserait
     # le DOS ou un fichier — l'effacement des overlays DOS casse le LOAD).
     collide = [t for t in story_tracks if any((t, s) in used for s in range(1, sectors + 1))]
@@ -150,8 +173,17 @@ def build(master, interp_bin, story_path, out_dsk, name="OZMOO",
                  "choisir un master avec pistes basses libres ou étendre le placement")
 
     di_full = od.build_full_disk_info(p.config_track_map, interleave=0)
+    ver = story[0]
+    di_cap = 71 if ver < 4 else (94 if ver < 7 else 150)   # cf. disk.asm !fill par version
+    if len(di_full) > di_cap:
+        sys.exit(f"disk_info trop grand ({len(di_full)} o > {di_cap} o pour V{ver}) — story "
+                 f"étalée sur trop de pistes ({last_story_track}). Réduire la fragmentation "
+                 "(placement plus compact) ou augmenter le buffer disk_info.")
     vmem_data = od.build_vmem_data(dynmem_blocks, total_blocks)
     cfg = od.build_config_track_bytes(list(game_id), di_full, vmem_data)
+    if len(cfg) > 512:
+        sys.exit(f"piste config trop grande ({len(cfg)} o > 512) — game_id+disk_info+vmem_data "
+                 "dépasse 2 secteurs.")
 
     # écrit les blocs story STATIQUES (dynmem exclue)
     for n, (t, s) in enumerate(p.blocks):

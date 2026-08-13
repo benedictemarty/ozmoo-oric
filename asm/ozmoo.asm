@@ -99,6 +99,15 @@
 	TARGET_ASSIGNED = 1
 	NO_COLOUR_MAP = 1      ; Oric = attributs serie, pas de colour-map VIC/TED
 	SUPPORT_REU = 0
+	; Derniere page RAM utilisable par les blocs VMEM non-bankes, +1. CRUCIAL :
+	; sans ca, VMEM_END_PAGE=$00 (=$100) par defaut -> les blocs statiques peuvent
+	; s'etaler jusqu'a $FFFF et ECRASER le vmap ($B000), le jeu de caracteres materiel
+	; Oric ($B400/$B800) et l'ecran ($BB80). Avec un GROS jeu (grosse dynmem ->
+	; vmap_first_ram_page haut, ex. HHGG=$5C) + vmap_max_entries eleve, la corruption
+	; est immediate. On borne a $B0 : blocs non-bankes de vmap_first_ram_page..$AFFF,
+	; vmap a $B000-$B0CC (juste au-dessus, sous le charset $B400). Banking $C000+ non
+	; encore implemente -> VMEM_END_PAGE < first_banked_memory_page ($C0).
+	VMEM_END_PAGE = $b0
 	!ifndef SLOW {
 		SLOW = 1
 	}

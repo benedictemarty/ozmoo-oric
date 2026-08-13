@@ -3,6 +3,51 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.32.0] - 2026-08-13 — ★★★★ HHGG JOUABLE SUR ORIC : gros jeu V3 en VMEM + @sread ★★★★
+### L'aboutissement : un vrai jeu Infocom tourne et se joue sur Oric
+**The Hitchhiker's Guide to the Galaxy** (release 59, **111 Ko**, V3) **boote en VMEM
+depuis la disquette Sedoric, affiche son intro et RÉPOND aux commandes tapées** :
+```
+THE HITCHHIKER'S GUIDE TO THE GALAXY / Release 59 / Serial 851108
+You wake up. The room is spinning... It is pitch black.
+> turn on light
+[description de la chambre : lavabo, chaise, robe de chambre, tournevis...]
+> wait
+Time passes...
+```
+Valide **bout-en-bout** : pagination VMEM d'un gros jeu multi-pistes + **saisie ligne
+`@sread`** (écho + RETURN + tokenisation dictionnaire + parser multi-mots) + table
+clavier complète. Non-régression : czech.z3 349/0, czech.z5 406/0.
+
+### Deux bugs corrigés pour les GROS jeux
+- **`ozmoo.asm` `VMEM_END_PAGE` non défini pour l'Oric → défaut $00 (=$100)**. Les blocs
+  VMEM non-bankés pouvaient s'étaler jusqu'à `$FFFF` et **écraser le vmap ($B000), le jeu
+  de caractères matériel Oric ($B400/$B800) et l'écran ($BB80)**. Invisible avec czech
+  (petite dynmem → `vmap_first_ram_page=$3E`, 16 blocs restant sous $5E00) ; **fatal avec
+  HHGG** (grosse dynmem → `vmap_first_ram_page=$5C`, `vmap_max_entries=82` → blocs jusqu'à
+  $FF, vmap corrompu → bloc dynmem 1 demandé → `readblock` boucle à l'infini). **Fix :
+  `VMEM_END_PAGE = $B0`** (blocs non-bankés `vmap_first_ram_page..$AFFF`, vmap $B000-$B0CC
+  juste au-dessus, sous le charset). Banking $C000+ non encore implémenté (< $C0).
+- **`tools/build_game_disk.py` : placement mono-bloc limité à la piste 20**. HHGG (~24
+  pistes statiques) déborde. **`_geometry(skip_tracks=...)`** réserve désormais la piste
+  système Sedoric (20) **et les pistes du fichier interpréteur AUTO** (calculées depuis
+  sa taille, alloué par sedoric_inject dès la piste 21) → la story les saute (octet
+  disk_info=0 ⇒ `readblock .next_track`). HHGG : story sur pistes **15-19 + 27-45**,
+  interp sur 21-26, système 20. Gardes ajoutés : `disk_info` ≤ buffer version (71 o en
+  V3) et piste config ≤ 512 o. `readblock_full` (Python) valide les 404 secteurs.
+
+### Ajouté
+- **`test-oric/hhgg_play_test.sh`** : build interp VMEM + `build_game_disk` + boot headless
+  Sedoric+Microdisc + tape « turn on light » puis « wait » → assertions intro HHGG
+  présente ET parser répond (« Time passes ») → **PASS**. Le fichier jeu (commercial)
+  n'est PAS versionné : attendu à la racine (`/home/bmarty/42/hhgg_r59.dat`), argument
+  optionnel.
+
+### Reste (cosmétique / optimisation)
+- Léger artefact d'affichage au scroll (redraw de ligne d'entrée) — non bloquant.
+- Banking `$C000-$FFFF` (RAM overlay sous ROM) pour plus de blocs en RAM (moins de
+  thrashing disque) ; face 1 (`read_track_sector` side 0) pour jeux > face 0.
+
 ## [0.31.0] - 2026-08-13 — Clavier : table complète (prérequis saisie ligne @sread)
 ### Table clavier Oric complétée — lettres + RETURN + DELETE
 La table `krc_to_ascii` (`keyboard-oric.asm`) était **quasi vide** (≈24 touches : chiffres
