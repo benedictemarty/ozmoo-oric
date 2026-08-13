@@ -909,7 +909,14 @@ game_id		!byte 0,0,0,0
 
 .initialize
 	cld
+!ifdef TARGET_ORIC {
+	; Oric : on tourne SANS interruptions. Le clavier est scruté (polling), l'accès
+	; FDC de read_track_sector est brut, et sous Sedoric (voie A) le handler IRQ
+	; résident du DOS déraillerait pendant nos accès disque. On garde donc SEI.
+	sei
+} else {
 	cli
+}
 !ifdef TARGET_X16 {
 	jsr x16_backup_basic_zp	
 }

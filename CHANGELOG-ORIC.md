@@ -3,6 +3,33 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.27.0] - 2026-08-13 — EPIC 5 : L'INTERPRÉTEUR BOOTE DEPUIS DISQUE (Sedoric)
+### JALON — Ozmoo se lance depuis une disquette Sedoric
+- **`tools/build_game_disk.py`** : construit une disquette de jeu BOOTABLE (équivalent
+  Oric+Sedoric de make.rb `build_S1`) : master Sedoric → `mfm2raw` → place story+config
+  en **secteurs bruts** sur pistes hautes libres → injecte l'interpréteur+dynmem en
+  **fichier AUTO** (`sedoric_inject`) + INIST autoexec `LOAD"OZMOO"` → `dsk_raw2mfm`.
+  **Prouvé sur Phosphoric : le splash `OZMOO ORIC-0.1` s'affiche** (Sedoric boote →
+  INIST charge et lance l'interp).
+- **FIX critique (`ozmoo.asm` `.initialize`)** : `cli` → **`sei` sous `TARGET_ORIC`**.
+  Le `cli` (hérité C64) réactivait les IRQ ; sous Sedoric, le **handler IRQ résident du
+  DOS** déraillait pendant nos accès FDC bruts (`read_track_sector`) → crash (BRK, boucle
+  ROM Sedoric). En SEI, **la lecture de la piste config marche : `disk_info` est
+  correctement rempli** (`00 01 02 08…`). L'Oric tourne sans IRQ (clavier scruté).
+  Non-régression voie B : **czech_test.sh PASS 349/0**.
+
+### Découvertes (empiriques, Phosphoric)
+- **Le DOS Sedoric ne vit que sur side 0 pistes {0, 20} + fichiers catalogue (7-10 sur
+  SEDO40u) + pistes BASSES réservées hors catalogue** : effacer la piste 1 casse le boot,
+  mais les **pistes 15+ sont sûres** → story/config placés à partir de la piste 15
+  (`-DCONF_TRK=15`). Le catalogue seul (31 secteurs) sous-estime le réservé DOS.
+- Amorçage EPROM : lit piste 0/sect 1 (secteur système Sedoric) → charge DOS.
+
+### Reste (dernier verrou avant czech jouable en VMEM)
+- **`load_suggested_pages` ne charge pas les blocs statiques** depuis le disque
+  (RAM `$3E00+` reste à zéro) alors que `disk_info` est correct et la lecture config OK.
+  À déboguer : parcours vmap / `readblock`→`read_track_sector` des pistes story (15-17).
+
 ## [0.26.0] - 2026-08-13 — EPIC 5 : pipeline Sedoric — AUTO file, mfm2raw, géométrie
 ### Décision
 - Voie **bootstrap Sedoric minimal** retenue (interp = fichier AUTO). Coexistence avec
