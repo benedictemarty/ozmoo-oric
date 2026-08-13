@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+"""build_game_disk.py — construit une disquette de jeu Ozmoo/Oric BOOTABLE (voie A).
+
+Équivalent Oric+Sedoric de make.rb (build_S1). Assemble, sur un master Sedoric
+bootable :
+  - l'interpréteur VMEM + sa dynmem, en **fichier AUTO** Sedoric (lancé au boot) ;
+  - la story-file en **secteurs bruts** (accès VMEM direct bloc→piste/secteur) ;
+  - la **piste de config** (disk_info + vmem_data) lue par le boot VMEM de l'interp.
+
+Faits établis (cf. docs/PORTING_ORIC.md §EPIC 5) :
+  * l'EPROM Microdisc n'amorce que du Sedoric ; on réutilise donc son boot via un
+    fichier AUTO (voie « bootstrap Sedoric minimal ») ;
+  * le DOS Sedoric ne vit que sur **side 0, pistes 0 et 20** (prouvé : effacer tout le
+    reste boote encore) → tout le reste est libre pour nous ;
+  * le fichier AUTO = interp ($0500–$33FF) + dynmem (chargée à $3400), load/exec $0500 ;
+  * la story va sur les **pistes 1-19** (bruts), l'interp AUTO dès la **piste 21**
+    (`sedoric_inject`), la piste 20 reste au DOS → aucune collision (petit jeu).
+
+Pipeline : mfm2raw(master) → efface hors {t0,t20} → reset directory (t20 s4) →
+écrit story+config bruts → sedoric_inject (interp AUTO + INIST) → dsk_raw2mfm.
+
+Usage : build_game_disk.py <master.dsk> <interp.bin> <story.z*> <out.dsk>
+          [name=OZMOO] [game_id_hex8=00__] [conf_trk=1]
+"""
+import importlib.util
+import os
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ORIC_TOOLS = os.path.expanduser("~/Oric1/tools")
+SECSZ = 256
+DIR_TRACK, DIR_SECTOR = 20, 4
+KEEP = {0, 20}                 # pistes DOS (side 0) à préserver
+
+
+def _load(mod, path):
+    spec = importlib.util.spec_from_file_location(mod, path)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+od = _load("oric_disk", os.path.join(HERE, "oric_disk.py"))
+mfm2raw = _load("mfm2raw", os.path.join(HERE, "mfm2raw.py"))
+
+
+def _catalog_used(raw, tracks, sectors, side=0):
+    """Carte des secteurs (piste, secteur 1-based) occupés par le catalogue Sedoric
+    (mêmes règles que sedoric_inject) : secteurs directory + descripteurs + data des
+    fichiers. Marche robuste (bornes) sur la chaîne directory depuis (20,4)."""
+    def rd(t, s):
+        o = ((side * tracks + t) * sectors + (s - 1)) * SECSZ
+        return raw[o:o + SECSZ]
+
+    def valid(t, s):
+        return 0 <= t < tracks and 1 <= s <= sectors
+
+    used = set()
+    dt, ds, guard = DIR_TRACK, DIR_SECTOR, 0
+    while guard < 128 and valid(dt, ds):
+        guard += 1
+        dirs = rd(dt, ds)
+        used.add((dt, ds))
+        for e in range(16, SECSZ, 16):
+            if dirs[e] == 0 and dirs[e + 15] == 0:
+                continue
+            if dirs[e + 15] & 0x80:            # supprimé
+                continue
+            cdt, cds, dg, first = dirs[e + 12], dirs[e + 13], 0, True
+            while dg < 128 and valid(cdt, cds):
+                dg += 1
+                desc = rd(cdt, cds)
+                used.add((cdt, cds))
+                p = 12 if first else 2
+                while p + 1 < SECSZ:
+                    if desc[p] == 0 and desc[p + 1] == 0:
+                        break
+                    if valid(desc[p], desc[p + 1]):
+                        used.add((desc[p], desc[p + 1]))
+                    p += 2
+                if desc[0] == 0 and desc[1] == 0:
+                    break
+                cdt, cds, first = desc[0], desc[1], False
+        if dirs[0] == 0 and dirs[1] == 0:
+            break
+        dt, ds = dirs[0], dirs[1]
+    return used
+
+
+def _geometry(tracks, sectors, first_track, config_sectors=2):
+    """Géométrie où les pistes 1..first_track-1 sont RÉSERVÉES (le DOS Sedoric occupe
+    les pistes basses hors catalogue — écrire dessus casse le LOAD), la story commence
+    à `first_track` avec `config_sectors` réservés pour la piste de config."""
+    tl = [0] + [sectors] * (tracks - 1)
+    rs = [0] * tracks
+    for t in range(1, first_track):
+        rs[t] = sectors                        # piste pleine = sautée par place_story
+    rs[first_track] = config_sectors           # piste config = story - 2 secteurs
+    return od.Geometry(track_length=tl, reserved_sectors=rs, interleave=0)
+
+
+def build(master, interp_bin, story_path, out_dsk, name="OZMOO",
+          game_id=b"\x00OZM", conf_trk=15, sectors=17):
+    story = open(story_path, "rb").read()
+    interp = open(interp_bin, "rb").read()
+
+    # 1) master MFM -> raw side-major (+ géométrie réelle)
+    buf = open(master, "rb").read()
+    sides, tracks, sectors, raw = mfm2raw.parse_mfm(buf, sectors)
+    raw = bytearray(raw)
+    print(f"master {master}: sides={sides} tracks={tracks} sectors={sectors}")
+
+    def off(side, t, s):       # s : index 0-based dans la piste
+        return ((side * tracks + t) * sectors + s) * SECSZ
+
+    # 2) carte des secteurs occupés par le DOS/fichiers (catalogue Sedoric).
+    #    On NE touche PAS au disque (le DOS Sedoric vit sur quelques pistes — ex.
+    #    7-10 + 0 + 20 sur SEDO40u ; l'effacer casse le LOAD). On écrit la story
+    #    uniquement sur des pistes catalogue-LIBRES.
+    used = _catalog_used(raw, tracks, sectors)
+    used_tracks = sorted(set(t for (t, s) in used))
+    print(f"catalogue : {len(used)} secteurs occupés, pistes {used_tracks}")
+
+    # 4) placement story + piste config (secteurs bruts, pistes libres)
+    nblocks = (len(story) + SECSZ - 1) // SECSZ
+    # Story sur les pistes HAUTES libres : les pistes basses (≈1-6) sont réservées
+    # au DOS Sedoric hors catalogue (test : écraser la piste 1 casse le boot ; les
+    # pistes 15+ sont sûres). `conf_trk` = 1re piste story (doit == -DCONF_TRK du build).
+    geo = _geometry(tracks, sectors, first_track=conf_trk)
+    p = od.place_story(nblocks, geo)
+    if len(p.blocks) < nblocks:
+        sys.exit(f"story trop grande : {len(p.blocks)}/{nblocks} blocs placés")
+    story_tracks = sorted(set(t for (t, s) in p.blocks) | {conf_trk})
+    last_story_track = max(story_tracks)
+    if last_story_track >= 20:
+        sys.exit(f"story déborde sur piste système/interp (piste {last_story_track} >= 20) "
+                 "— gros jeu : builder à étendre (faces/pistes hautes)")
+    # sécurité : les pistes story/config doivent être LIBRES (sinon on écraserait
+    # le DOS ou un fichier — l'effacement des overlays DOS casse le LOAD).
+    collide = [t for t in story_tracks if any((t, s) in used for s in range(1, sectors + 1))]
+    if collide:
+        sys.exit(f"pistes story/config {collide} occupées par le DOS/fichiers — "
+                 "choisir un master avec pistes basses libres ou étendre le placement")
+
+    di_full = od.build_full_disk_info(p.config_track_map, interleave=0)
+    _, dynmem_blocks, total_blocks = od.story_vmem_layout(story)
+    vmem_data = od.build_vmem_data(dynmem_blocks, total_blocks)
+    cfg = od.build_config_track_bytes(list(game_id), di_full, vmem_data)
+
+    # écrit les blocs story
+    for n, (t, s) in enumerate(p.blocks):
+        blk = story[n * SECSZ:(n + 1) * SECSZ]
+        blk = blk + bytes(SECSZ - len(blk))
+        o = off(0, t, s)
+        raw[o:o + SECSZ] = blk
+    # écrit la piste config (2 secteurs 0-based) sur conf_trk
+    padded = bytes(cfg) + bytes(512 - len(cfg))
+    raw[off(0, conf_trk, 0):off(0, conf_trk, 0) + SECSZ] = padded[:SECSZ]
+    raw[off(0, conf_trk, 1):off(0, conf_trk, 1) + SECSZ] = padded[SECSZ:512]
+    print(f"story {len(story)}o -> {nblocks} blocs (pistes {conf_trk}-{last_story_track}), "
+          f"config piste {conf_trk} ({len(cfg)}o), dynmem={dynmem_blocks} blocs, "
+          f"statiques {dynmem_blocks}..{total_blocks - 1}")
+
+    # 5) fichier AUTO = interp + dynmem (chargé à story_start=$3400)
+    dynmem = od.story_dynmem_prefix(story)
+    auto = interp + dynmem
+    tmp_raw = out_dsk + ".raw"
+    tmp_auto = out_dsk + ".auto"
+    tmp_raw2 = out_dsk + ".raw2"
+    open(tmp_raw, "wb").write(bytes(raw))
+    open(tmp_auto, "wb").write(auto)
+    print(f"fichier AUTO = interp {len(interp)}o + dynmem {len(dynmem)}o = {len(auto)}o "
+          f"(load/exec $0500)")
+
+    # 6) injection Sedoric (fichier AUTO + INIST autoexec)
+    nm = (name.split(".")[0] + ".COM") if "." not in name else name
+    init_cmd = f'LOAD"{nm.split(".")[0]}"'
+    r = subprocess.run([sys.executable, os.path.join(ORIC_TOOLS, "sedoric_inject.py"),
+                        tmp_raw, tmp_auto, "500", nm, tmp_raw2,
+                        str(tracks), str(sectors), init_cmd, "500"],
+                       capture_output=True, text=True)
+    sys.stdout.write(r.stdout)
+    if r.returncode != 0:
+        sys.stderr.write(r.stderr)
+        sys.exit("sedoric_inject a échoué")
+
+    # 7) raw -> MFM
+    r2m = _load("dsk_raw2mfm", os.path.join(ORIC_TOOLS, "dsk_raw2mfm.py"))
+    raw2 = open(tmp_raw2, "rb").read()
+    hdr = bytearray(b"MFM_DISK")
+    import struct
+    hdr += struct.pack("<I", sides) + struct.pack("<I", tracks) + struct.pack("<I", 1)
+    hdr += b"\x00" * (256 - len(hdr))
+    outb = bytearray(hdr)
+    for side in range(sides):
+        for t in range(tracks):
+            block = side * tracks + t
+            base = block * sectors * SECSZ
+            secs = [raw2[base + i * SECSZ: base + (i + 1) * SECSZ] for i in range(sectors)]
+            outb += r2m.build_track(t, side, secs)
+    open(out_dsk, "wb").write(outb)
+    for f in (tmp_raw, tmp_auto, tmp_raw2):
+        os.remove(f)
+    print(f"OK -> {out_dsk} ({len(outb)}o) — INIST={init_cmd}")
+
+
+def main():
+    if len(sys.argv) < 5:
+        sys.exit(__doc__)
+    master, interp_bin, story_path, out_dsk = sys.argv[1:5]
+    name = sys.argv[5] if len(sys.argv) > 5 else "OZMOO"
+    game_id = bytes.fromhex(sys.argv[6]) if len(sys.argv) > 6 else b"\x00OZM"
+    conf_trk = int(sys.argv[7]) if len(sys.argv) > 7 else 1
+    build(master, interp_bin, story_path, out_dsk, name, game_id, conf_trk)
+
+
+if __name__ == "__main__":
+    main()
