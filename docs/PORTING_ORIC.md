@@ -222,12 +222,20 @@ constructeur de disque. Découpage :
    `[taille=11+nbpistes, device, lastblock+1_hi, lastblock+1_lo, nbpistes] + octets/piste + 6 octets nom`
    ; octet/piste = `64*(secteurs_réservés/2) + secteurs_story` (bits 0-5 = secteurs
    utilisés, bits 6-7 = sautés/2). Reste : en-tête config global + écriture image MFM Oric.
-2. **Init `disk_info` au boot** depuis la piste config (`CONF_TRK`, remplie par le
-   constructeur) → buffer `disk_info` (`!fill 71` en Z3).
-   *Ajout : `oric_disk.py build_disk()` écrit une image BRUTE side-major avec la
-   story placée + sort les octets `disk_info` (CLI `oric_disk.py story.z3 out.raw`).
-   Testé : 600 blocs relus depuis l'image == story.*
-3. **Boot loader** : charger l'interpréteur + init `disk_info` → 1re exécution VMEM.
+2. **Init `disk_info` au boot** depuis la piste config (`CONF_TRK`) → buffer `disk_info`
+   (`!fill 71` en Z3). ✅ **Côté constructeur FAIT (v0.23.0)** : `oric_disk.py`
+   `build_config_track_bytes()` sérialise la piste config au format lu par le boot
+   (`game_id(4) + octet-taille + disk_info complet + vmem_data`), et
+   `build_bootable_disk()` l'écrit dans les 2 secteurs réservés de `CONF_TRK`. Testé :
+   **chaîne de boot complète simulée** (piste config → `disk_info` reconstruit comme
+   `ozmoo.asm` L2255-2274 → `readblock_full` → données == story, 1200 blocs).
+   ✅ **Côté interpréteur : le code existe déjà** — `ozmoo.asm` `deletable_init`
+   (L2241-2276, `!ifdef VMEM`) lit la piste config via **`read_track_sector`** (déjà
+   porté/validé), copie `game_id`, reconstruit `disk_info`, `auto_disk_config`. Reste
+   à faire assembler/tourner ce chemin sous `TARGET_ORIC` (définir `config_load_address`
+   et `boot_device` pour l'Oric ; vérifier `auto_disk_config`).
+3. **Boot loader** : charger l'interpréteur (tape) + init `disk_info` → 1re exécution VMEM.
+   *Écriture image finale en MFM Oric via `~/Oric1/tools/dsk_raw2mfm.py`.*
 
 ✅ **Finding (harnais readblock standalone) — RÉSOLU en Python (v0.22.0)** : `readblock`
 ne trouve la bonne piste que si `.blocks_to_go` est réordonné en big-endian par un passage

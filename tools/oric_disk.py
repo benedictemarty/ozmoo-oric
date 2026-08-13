@@ -290,6 +290,55 @@ def raw_offset(side, track, sector, sectors_per_track=SEDORIC_SECTORS):
     return ((side * SEDORIC_TRACKS_PER_SIDE + track) * sectors_per_track + sector) * 256
 
 
+# --------------------------------------------------------------------------
+# 4bis) PISTE DE CONFIG (game_id + taille + disk_info complet + vmem_data)
+# --------------------------------------------------------------------------
+# Layout écrit par make.rb (set_config_data → config track) et relu par le boot
+# VMEM (ozmoo.asm deletable_init, L2241-2276) :
+#   +0..3  game_id (BUILD_ID)
+#   +4     octet « taille » = 1 + len(disk_info complet)  [inclut cet octet]
+#   +5..   disk_info complet (interleave, save_slots, ndisks, save entry, story entry)
+#   suivi  vmem_data (liste des blocs de préchargement) — le tout ≤ 512 o (2 secteurs).
+# Au boot : read_track_sector(CONF_TRK, sect 0)→config_load_address, (sect 1)→+256 ;
+# game_id ← [+0..3] ; on copie (taille-1) octets depuis +5 vers disk_info (donc
+# disk_info+0 = interleave). `read_track_sector` (WD1793, porté) fait la lecture.
+
+def build_config_track_bytes(game_id, disk_info_full, vmem_data=None):
+    """Sérialise la piste de config (max 512 o = 2 secteurs). `game_id` = 4 octets,
+    `disk_info_full` = sortie de build_full_disk_info, `vmem_data` = liste (défaut :
+    en-tête minimal, 0 bloc préchargé). L'octet +4 = 1 + len(disk_info_full)."""
+    if len(game_id) != 4:
+        raise ValueError("game_id doit faire 4 octets")
+    if vmem_data is None:
+        # en-tête vmem minimal : total_len(hi,lo)=4, nb suggérés=0, nb préchargés=0
+        vmem_data = [0, 4, 0, 0]
+    size_byte = 1 + len(disk_info_full)
+    data = list(game_id) + [size_byte] + list(disk_info_full) + list(vmem_data)
+    if len(data) > 512:
+        raise ValueError(f"config trop grande : {len(data)} > 512 octets (2 secteurs)")
+    return data
+
+
+def build_bootable_disk(story_bytes, geo: Geometry, game_id, config_track=1,
+                        device=0, vmem_data=None):
+    """Construit une image BRUTE side-major complète : blocs story placés + piste de
+    config écrite dans les secteurs réservés de `config_track`. Renvoie
+    (raw, disk_info_full, placement, config_bytes). La géométrie DOIT réserver ≥ 2
+    secteurs sur `config_track` (default_microdisc(..., config_sectors=2))."""
+    if geo.reserved_sectors[config_track] < 2:
+        raise ValueError(f"config_track {config_track} doit réserver ≥ 2 secteurs")
+    raw, info_entry, p = build_disk(story_bytes, geo, device)
+    raw = bytearray(raw)
+    disk_info_full = build_full_disk_info(p.config_track_map, device=device,
+                                          interleave=geo.interleave)
+    config_bytes = build_config_track_bytes(game_id, disk_info_full, vmem_data)
+    # écrit la config sur les 2 premiers secteurs (0-based) de config_track
+    padded = bytes(config_bytes) + bytes(512 - len(config_bytes))
+    raw[raw_offset(0, config_track, 0):raw_offset(0, config_track, 0) + 256] = padded[:256]
+    raw[raw_offset(0, config_track, 1):raw_offset(0, config_track, 1) + 256] = padded[256:512]
+    return bytes(raw), disk_info_full, p, config_bytes
+
+
 def build_disk(story_bytes, geo: Geometry, device=0):
     """Construit l'image disque BRUTE (side-major, 2x42x17x256) avec les blocs
     story placés aux (piste, secteur) calculés, et renvoie (raw_image, disk_info,
@@ -375,6 +424,42 @@ def _full_disk_info_test():
     return checks
 
 
+def _bootable_disk_test():
+    """Valide la chaîne complète : construction image bootable → RELECTURE de la piste
+    config depuis l'image (comme read_track_sector au boot) → RECONSTRUCTION de disk_info
+    (comme ozmoo.asm L2255-2274) → readblock_full retrouve chaque bloc + game_id correct.
+    Simule fidèlement le chemin boot VMEM Oric de bout en bout, sans émulateur."""
+    checks = 0
+    for interleave in (0, 1, 3):
+        geo = default_microdisc(tracks=41, sectors=17, config_track=1,
+                                config_sectors=2, interleave=interleave)
+        nblocks = 400
+        story = bytes(((n + i) & 0xff) for n in range(nblocks) for i in range(256))
+        game_id = [0xDE, 0xAD, 0xBE, 0xEF]
+        raw, di_full, p, cfg = build_bootable_disk(story, geo, game_id, config_track=1)
+        # --- relit la piste config depuis l'image (2 secteurs 0-based) ---
+        s0 = raw[raw_offset(0, 1, 0):raw_offset(0, 1, 0) + 256]
+        s1 = raw[raw_offset(0, 1, 1):raw_offset(0, 1, 1) + 256]
+        cla = bytes(s0) + bytes(s1)              # config_load_address
+        # --- reconstruit game_id + disk_info comme le boot ---
+        assert list(cla[0:4]) == game_id, f"game_id relu {list(cla[0:4])} != {game_id}"
+        size = cla[4]
+        disk_info = list(cla[5:5 + (size - 1)])  # copie (taille-1) octets depuis +5
+        assert disk_info == di_full, "disk_info reconstruit != build_full_disk_info"
+        # --- vérifie que readblock_full sur ce disk_info retrouve chaque bloc placé ---
+        for block, (t, s) in enumerate(p.blocks):
+            assert readblock_full(block, disk_info) == (t, s), \
+                f"interleave={interleave} bloc {block}: readblock_full incorrect"
+            # et que les octets à cet emplacement == bloc story
+            off = raw_offset(0, t, s)
+            assert raw[off:off + 256] == story[block * 256:(block + 1) * 256], \
+                f"interleave={interleave} bloc {block}: données disque incorrectes"
+            checks += 1
+    print(f"OK: {checks} blocs — chaîne boot complète simulée "
+          "(piste config -> disk_info -> readblock_full -> données) == story")
+    return checks
+
+
 def disk_info_bytes(info, name_bytes=None):
     """Sérialise l'entrée disk_info (comme make.rb build_S1) :
     [taille, device, lastblock+1_hi, lastblock+1_lo, nbpistes] + octets/piste + nom(6)."""
@@ -386,26 +471,28 @@ def disk_info_bytes(info, name_bytes=None):
 
 
 def _cli(argv):
-    import sys
     if len(argv) < 3:
-        print("usage: oric_disk.py <story.z*> <out.raw> [interleave]\n"
-              "  construit une image BRUTE side-major (à convertir en MFM via "
-              "dsk_raw2mfm.py) ; imprime les octets disk_info.")
+        print("usage: oric_disk.py <story.z*> <out.raw> [interleave] [game_id_hex8]\n"
+              "  construit une image BRUTE side-major BOOTABLE (blocs story + piste de\n"
+              "  config CONF_TRK=1) ; à convertir en MFM via dsk_raw2mfm.py.\n"
+              "  Imprime le disk_info complet et la piste de config.")
         return 1
     story = open(argv[1], "rb").read()
     interleave = int(argv[3]) if len(argv) > 3 else 0
+    game_id = bytes.fromhex(argv[4]) if len(argv) > 4 else b"\x00OZM"
     geo = default_microdisc(tracks=41, sectors=17, config_track=1,
-                            config_sectors=0, interleave=interleave)
-    raw, info, p = build_disk(story, geo)
+                            config_sectors=2, interleave=interleave)
+    raw, di_full, p, cfg = build_bootable_disk(story, geo, list(game_id), config_track=1)
     open(argv[2], "wb").write(raw)
-    di = disk_info_bytes(info)
-    full = build_full_disk_info(p.config_track_map, interleave=interleave)
+    di = disk_info_bytes(build_disk_info_entry(p.config_track_map))
     print(f"story={len(story)}o -> {len(p.blocks)} blocs, image brute {len(raw)}o -> {argv[2]}")
     print(f"1ers blocs (bloc->piste,secteur): "
           + ", ".join(f"{n}->{p.blocks[n]}" for n in range(min(6, len(p.blocks)))))
     print(f"disk_info entrée story ({len(di)} octets) = " + " ".join(f"{b:02x}" for b in di))
-    print(f"disk_info COMPLET ({len(full)} octets, préambule+save+story) = "
-          + " ".join(f"{b:02x}" for b in full))
+    print(f"disk_info COMPLET ({len(di_full)} octets, préambule+save+story) = "
+          + " ".join(f"{b:02x}" for b in di_full))
+    print(f"piste config CONF_TRK=1 ({len(cfg)} octets) = "
+          + " ".join(f"{b:02x}" for b in cfg[:24]) + (" ..." if len(cfg) > 24 else ""))
     return 0
 
 
@@ -416,3 +503,4 @@ if __name__ == "__main__":
     _roundtrip_test()
     _disk_data_test()
     _full_disk_info_test()
+    _bootable_disk_test()

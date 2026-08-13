@@ -3,6 +3,40 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.23.0] - 2026-08-13 — EPIC 5 voie A : piste de config + chaîne de boot simulée
+### Ajouté
+- **`oric_disk.py build_config_track_bytes()`** : sérialise la piste de config (≤ 512 o,
+  2 secteurs) au format lu par le boot VMEM (`ozmoo.asm` `deletable_init` L2241-2276) :
+  `game_id(4) + octet-taille + disk_info complet + vmem_data`. L'octet-taille (+4) =
+  `1 + len(disk_info)` ; le boot copie `taille-1` octets depuis +5 vers `disk_info`
+  (donc `disk_info+0` = interleave). vmem_data minimal par défaut (0 bloc préchargé).
+- **`oric_disk.py build_bootable_disk()`** : image BRUTE side-major **complète** =
+  blocs story placés + **piste de config écrite** dans les 2 secteurs réservés de
+  `CONF_TRK`. Renvoie `(raw, disk_info_full, placement, config_bytes)`.
+- CLI `oric_disk.py` : produit désormais une image **bootable** (config_sectors=2 +
+  piste config) et accepte un `game_id` optionnel ; imprime la piste de config.
+
+### Découverte (clé de la 1re exécution VMEM)
+- Le « boot loader » qui remplit `disk_info` **existe déjà** et est **générique** :
+  `ozmoo.asm` `deletable_init` (L2241-2276, sous `!ifdef VMEM`) lit la piste config
+  via **`read_track_sector`** (routine WD1793 **déjà portée & validée** !), copie
+  `game_id`, reconstruit `disk_info`, puis `auto_disk_config`. Le portage Oric de cette
+  étape ⇒ surtout définir `config_load_address`/`boot_device` pour l'Oric et vérifier
+  `auto_disk_config`. Reste ensuite : charger l'interpréteur lui-même (tape→VMEM).
+
+### Tests
+- **`_bootable_disk_test()` : 1200 blocs** — **chaîne de boot COMPLÈTE simulée sans
+  émulateur** : image bootable → relecture de la piste config depuis l'image (comme
+  `read_track_sector`) → reconstruction de `disk_info` (comme la copie L2255-2274,
+  octet-taille inclus) → `readblock_full` retrouve chaque bloc → **données lues ==
+  story** + `game_id` vérifié. Round-trip 2092 + 600 + 4352 inchangés (PASS).
+
+### Reste voie A
+- Porter/vérifier l'assemblage du chemin boot L2241-2276 sous `TARGET_ORIC` + `VMEM`
+  (`config_load_address`, `boot_device`, `auto_disk_config`).
+- Charger l'interpréteur en RAM (tape) puis `jmp program_start` → **1re exécution VMEM**.
+- Écriture image en MFM Oric (`~/Oric1/tools/dsk_raw2mfm.py`).
+
 ## [0.22.0] - 2026-08-13 — EPIC 5 voie A : disk_info COMPLET (save+story) validé
 ### Ajouté
 - **`oric_disk.py build_full_disk_info()`** : construit le `disk_info` **complet**
