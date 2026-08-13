@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Run czech.z3 en VMEM depuis la disquette Sedoric (voie A) + captures ecran
-# periodiques pour lire les lignes "ERROR [n] Expected X; got Y" qui defilent.
-# Usage : vmem_disk_run.sh [story.z3]
+# Run une story Z-machine en VMEM depuis la disquette Sedoric (voie A) + captures
+# ecran periodiques pour lire les lignes "ERROR [n] Expected X; got Y" qui defilent.
+# La version Z (V3/V5...) est detectee sur l'octet 0 de l'en-tete de la story.
+# Usage : vmem_disk_run.sh [story.z3|story.z5]
 set -eu
 cd "$(dirname "$0")/.."
 EMU=~/Oric1/oric1-emu
@@ -11,6 +12,13 @@ MASTER=~/Oric1/disks/SEDO40u.DSK
 OUT=temp/vmem
 STORY=${1:-test/czech.z3}
 mkdir -p "$OUT"
+# Nettoyage des captures d'une run precedente (sinon les ERROR d'une autre story
+# polluent l'analyse).
+rm -f "$OUT"/s*.txt "$OUT"/nz*.txt "$OUT"/fx*.txt "$OUT"/final.txt 2>/dev/null || true
+
+# Version Z-machine = 1er octet de l'en-tete -> flag -DZ<n> pour ACME.
+ZVER=$(python3 -c "import sys;print(open(sys.argv[1],'rb').read(1)[0])" "$STORY")
+echo "story=$STORY version Z=$ZVER"
 
 FN="czech"; VS="Oric-0.1"
 sed "s/@fn@/$FN/g" asm/file-name.tpl  > "temp/file-name.asm"
@@ -22,7 +30,7 @@ sed -e 's/@0s@//g' -e 's/@1s@//g' -e 's/@2s@//g' -e 's/@3s@//g' \
 # 1) interpreteur VMEM, story sur pistes hautes (CONF_TRK=15)
 cd asm
 acme --setpc 0x0500 \
-  -DTARGET_ORIC=1 -DZ3=1 -DVMEM=1 \
+  -DTARGET_ORIC=1 -DZ${ZVER}=1 -DVMEM=1 \
   -DCACHE_PAGES=4 -DSTACK_PAGES=4 -DCONF_TRK=15 \
   -DMAJOR_VERSION_NO=0 -DMINOR_VERSION_NO=1 \
   --cpu 6502 --vicelabels ../"$OUT"/ozmoo-oric.lab \
@@ -53,10 +61,13 @@ echo "=== ERREURS capturees (ERROR [n] Expected X; got Y) ==="
 grep -hiE 'ERROR \[|Expected .*got' "$OUT"/s*.txt "$OUT"/final.txt 2>/dev/null | sort -u || echo "(aucune)"
 
 # Assertion de non-regression : czech doit passer INTEGRALEMENT en VMEM disque.
-if grep -qi 'PASSED: 349, FAILED: 0' "$OUT"/s*.txt "$OUT"/final.txt 2>/dev/null; then
-  echo "PASS: czech.z3 conforme en VMEM depuis disque (349/0)"
+# Generique V3/V5 : verdict present avec "FAILED: 0" et aucune ligne ERROR.
+if grep -qiE 'FAILED: 0\b' "$OUT"/s*.txt "$OUT"/final.txt 2>/dev/null \
+   && ! grep -qiE 'ERROR \[' "$OUT"/s*.txt "$OUT"/final.txt 2>/dev/null; then
+  PASSED=$(grep -hoiE 'PASSED: [0-9]+' "$OUT"/s*.txt "$OUT"/final.txt 2>/dev/null | grep -oE '[0-9]+' | sort -rn | head -1)
+  echo "PASS: $STORY conforme en VMEM depuis disque (Passed: $PASSED, Failed: 0)"
   exit 0
 else
-  echo "FAIL: verdict czech VMEM absent ou regression (attendu 349/0)"
+  echo "FAIL: verdict czech VMEM absent ou regression (attendu FAILED: 0)"
   exit 1
 fi

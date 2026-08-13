@@ -235,6 +235,37 @@ sel_l	sta (zp_screenline),y
 	tax
 	rts
 
+; --- s_erase_line_from_cursor (V5) : efface du curseur a la fin de la ligne ---
+; Requis par z_ins_erase_line (erase_line 1) sous Z4PLUS. Efface les colonnes
+; [zp_screencolumn .. s_screen_width-1] de la ligne courante (espaces).
+s_erase_line_from_cursor
+	txa
+	pha
+	tya
+	pha
+	jsr s_setline
+	lda #$20
+	ldy zp_screencolumn
+selc_l	cpy s_screen_width
+	bcs selc_done             ; curseur deja en fin de ligne -> rien a faire
+	sta (zp_screenline),y
+	iny
+	bne selc_l               ; toujours (y < 40)
+selc_done
+	pla
+	tay
+	pla
+	tax
+	rts
+
+; --- z_ins_set_colour (V5) : STUB Oric ---------------------------------------
+; L'Oric est en attributs serie (NO_COLOUR_MAP) : pas de couleur premier plan/fond
+; par cellule bon marche. set_colour ne stocke aucun resultat ; les operandes sont
+; deja consommees par le decodeur. On ignore la couleur (a etoffer ulterieurement
+; via insertion d'attributs serie). No-op fonctionnel.
+z_ins_set_colour
+	rts
+
 ; --- variables couleur / mode (stubs) ---------------------------------------
 darkmode      !byte 0
 fgcol         !byte 1        ; encre par defaut

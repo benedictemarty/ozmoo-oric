@@ -3,6 +3,37 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.30.0] - 2026-08-13 — ★★★ V5 EN VMEM : czech.z5 PASSE 406/0 DEPUIS LE DISQUE ★★★
+### L'objectif du projet — interpréteur V5 paginé sur Oric — est DÉMONTRÉ
+La version **V5** du testeur de conformité (`czech.z5`) tourne de bout en bout en VMEM
+depuis la disquette Sedoric et rend **`Performed 425 tests. Passed: 406, Failed: 0.
+Didn't crash: hooray!`**. Valide le chemin V5 complet : **adresses packées ×4**,
+**objets 14 octets / 63 propriétés par défaut / 48 attributs** (`calculate_object_address`
+sous `Z4PLUS`), en-tête V5, opcodes étendus (`call_xn`, `throw`, `set_colour`,
+`erase_line`, `print_table`…). Non-régression V3 : `czech.z3` toujours **349/0**.
+
+### Ajouté (module écran Oric — coutures V5 manquantes)
+- **`screenkernal-oric.asm` `s_erase_line_from_cursor`** : efface du curseur à la fin
+  de la ligne courante (colonnes `[zp_screencolumn .. s_screen_width-1]`). Requis par
+  `z_ins_erase_line` (opcode `erase_line 1`) sous `Z4PLUS`.
+- **`screenkernal-oric.asm` `z_ins_set_colour`** : STUB no-op (l'Oric est en attributs
+  série `NO_COLOUR_MAP` ; la couleur premier plan/fond par cellule est différée — à
+  étoffer via insertion d'attributs série). set_colour ne stocke pas de résultat ;
+  opérandes déjà consommées → `rts` fonctionnel. Débloque l'assemblage `-DZ5`.
+
+### Outillage
+- **`test-oric/vmem_disk_run.sh`** : détecte la version Z (octet 0 de l'en-tête) →
+  flag `-DZ<n>` automatique (V3/V5) ; nettoie les captures d'une run précédente ;
+  assertion générique `FAILED: 0` + absence de ligne `ERROR` (au lieu du 349 codé en
+  dur). Pipeline V5 identique à V3 (`build_game_disk.py`).
+
+### Note
+- `praxix.z5`/`strictz.z5` (autres testeurs V5) ont un format de sortie et une gestion
+  d'entrée `@read` (ligne) différents de czech → non validés par ce harnais (czech-
+  spécifique). czech.z5 = testeur de conformité exhaustif, preuve V5 suffisante.
+- Reste : saisie ligne `@sread`/`@aread` (écho/Enter/parsing) sur un vrai jeu ; story
+  multi-faces (`read_track_sector` force side 0) ; tester un V5 réel (InvisiClues…).
+
 ## [0.29.0] - 2026-08-13 — ★★★ czech PASSE 349/0 EN VMEM DEPUIS LE DISQUE ★★★
 ### Les 7 échecs VMEM résolus — la pagination disque est PARFAITE
 czech.z3 rend désormais **`Performed 368 tests. Passed: 349, Failed: 0. Didn't crash:
