@@ -32,9 +32,12 @@ CHARSET_ALT           = $b800        ; jeu alternatif
 ; ON : les blocs VMEM etendus ($C000-$DDFF) sont adresses DIRECTEMENT (pas de cache) ;
 ;   first_banked_memory_page=$E0 desactive le chemin cache (aucun bloc n'atteint $E0),
 ;   les blocs du trou charset/ecran $B4-$BF sont skippes vers $C0+ (cf. vmem.asm).
-;   Gain HHGG 42->59 blocs (~40% de faults en moins). VALIDE en V3 (HHGG) MAIS
-;   REGRESSE en V5 : advent_punyinform CRASHE au traitement de la saisie (cause non
-;   isolee ; z_pc et chemins de lecture verifies coherents) -> a debugger avant d'activer.
+;   Gain HHGG 42->59 blocs (~40% de faults en moins). Le CRASH V5 initial (advent) a ete
+;   ROOT-CAUSE puis CORRIGE en v0.36.1 : c'etait s_scroll_oric qui debordait de l'ecran
+;   (compteur de lignes sous-debordant quand une fenetre haute V5 = ecran entier) et
+;   corrompait $C000-$DFFF (vmap + blocs). Banking desormais data-correct (vmap propre,
+;   pas de crash). Reste OFF par defaut le temps de polir l'affichage sous scroll intensif
+;   (bug num_rows/word-wrap pre-existant, plus visible en banking a cause du boot plus lent).
 ; OFF (defaut) : comportement stable v0.35.0 (VMEM_END_PAGE=$B0, vmap $B000, pas de skip).
 !ifdef ORIC_BANKING {
 first_banked_memory_page = $e0       ; $C000-$DFFF adressables directs (romdis off)

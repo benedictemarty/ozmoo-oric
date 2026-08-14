@@ -3,6 +3,34 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.36.1] - 2026-08-14 — Fix `s_scroll_oric` : scroll borné (corrige un débordement d'écran + débloque le crash V5 du banking)
+### Bug corrigé (correctif inconditionnel, améliore le build par défaut)
+`s_scroll_oric` calculait le nombre de lignes à déplacer par `X = s_screen_height − (window_start_row+1) − 1`
+**sans borne**. Quand une **fenêtre haute V5** couvre tout l'écran (`window_start_row+1 == s_screen_height`,
+observé sur *advent_punyinform* : `protect=28`, `height=28`), la soustraction **sous-déborde**
+(`28−28−1 = −1 = $FF`) → le scroll **balaie ~256 lignes** au lieu de ~26, écrivant de `$BB80`
+jusqu'à `~$E358`, **bien au-delà de l'écran**. **Fix** : garde qui saute le scroll si le nombre
+de lignes à déplacer est ≤ 0 (`bcc`/`beq` → `sso_nothing`) — quand la fenêtre haute couvre tout,
+il n'y a rien à scroller.
+### Impact
+- **Build par défaut** : le débordement écrivait dans `$C000-$DFFF` (RAM alors **inutilisée** →
+  inoffensif mais **incorrect**). Correction de propreté. **Non-régression : czech.z3 349/0,
+  czech.z5 406/0, HHGG jouable, dragontroll.z5 (V5) jouable, advent_punyinform.z5 (V5) jouable.**
+- **Banking (`-DORIC_BANKING`)** : le débordement écrasait le **vmap ($DE00) et les blocs VMEM
+  ($C000-$DDFF)** → `z_pc` déraillait → décodait l'opcode `$B7` (0OP:restart) → `jmp` reset dans un
+  bloc RAM → **`JAM` (CPU figé)**. **CRASH V5 RÉSOLU** : advent en banking **ne crashe plus**, boote,
+  affiche la salle complète, **répond aux commandes** ; vmap vérifié **propre** (0 entrée hors-story).
+### Diagnostic (méthode)
+Trace CPU en anneau (`--trace-ring`/`--trace`) → signature du JAM (`FFA3 JMP $DAEE` → bloc RAM) ;
+opcode fautif `$B7` lu par z_pc à une page banked au contenu erroné ; **bisection temporelle**
+(`--dump-ram-at`) situant la corruption du vmap à ~206 M cycles pendant le traitement de « east » ;
+trace fine → l'instruction corruptrice **`sso_st: STA $DE30,Y`** (= `s_scroll_oric`) ; lecture de
+`s_screen_height`/`window_start_row+1` → sous-débordement du compteur. Aucune supposition retenue.
+### Reste (non bloquant, hors banking)
+Artefacts d'affichage sous scroll/[MORE] intensif (bug **num_rows/word-wrap** pré-existant, cf.
+v0.33.0/v0.34.0) — plus visibles en banking (boot plus lent → écran qui se remplit) ; à polir avant
+d'envisager d'activer le banking par défaut.
+
 ## [0.36.0] - 2026-08-14 — Banking $C000-$DFFF : implémenté en flag opt-in expérimental (`-DORIC_BANKING`, OFF par défaut)
 ### Ce qui est fait
 Le **banking de la RAM overlay `$C000-$DFFF`** (RAM sous la ROM BASIC, exposée quand

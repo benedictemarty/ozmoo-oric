@@ -233,7 +233,14 @@ sso_ptr_ok
 	lda s_screen_height
 	sec
 	sbc window_start_row + 1
+	bcc sso_nothing                 ; protect > hauteur : la fenetre haute deborde -> rien a scroller
 	sbc #1
+	bcc sso_nothing                 ; protect == hauteur : fenetre basse vide -> rien
+	beq sso_nothing                 ; 0 ligne a deplacer (fenetre basse <= 1 ligne) -> rien
+	; NB : sans cette garde, X sous-deborde ($FF) quand une fenetre haute V5 couvre
+	; tout l'ecran, et le scroll balaie ~256 lignes bien au-dela de l'ecran
+	; ($BB80..$E3xx), corrompant $C000-$DFFF (fatal en banking ou y vivent vmap +
+	; blocs VMEM ; inoffensif sinon car RAM inutilisee, mais incorrect).
 	tax
 sso_line
 	ldy #39
@@ -269,6 +276,7 @@ sso_clr
 sso_cl	sta $ffff,y
 	dey
 	bpl sso_clr
+sso_nothing
 	rts
 
 ; --- routines de support (stubs pour premier affichage ; a etoffer) ---------
