@@ -73,6 +73,7 @@ Scripts de non-régression headless dans `test-oric/` (build + émulateur + asse
 - `vmem_disk_run.sh <story>` — conformité czech en VMEM disque (V3/V5 auto-détecté).
 - `hhgg_play_test.sh` — jouabilité gros jeu V3 (HHGG : intro + réponse du parser + effacement).
 - `v5_play_test.sh` — jouabilité jeu V5 (dragontroll : intro + `@aread`/écho + changement de salle).
+- `scroll_unbuf_test.sh` — `s_printchar` non-bufferisé + `s_scroll_oric` : long texte scrollé sans chevauchement.
 - `kbd_table_test.sh` — table clavier (lettres, chiffres, RETURN=13, DEL=8).
 - `run-test.sh`, `init_e2e.sh`, `czech_test.sh` — écran/clavier/disque, init, conformité tape.
 

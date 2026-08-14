@@ -3,6 +3,31 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.36.2] - 2026-08-14 — Investigation garble banking : le path unbuffered+scroll est PROPRE ; le vrai coupable est ailleurs
+### Ce qui a été établi
+Investigation de l'artefact d'affichage « Did you know...s this edition?e fol » observé en
+mode banking (`-DORIC_BANKING`) sur *advent_punyinform* :
+- **Build par défaut : RIEN à corriger.** advent V5 joué sur de nombreux tours = affichage
+  **parfaitement propre** (status-line, word-wrap des longues descriptions, déplacements,
+  réponses parser). HHGG intro propre. Le bug word-wrap/num_rows historique est **résolu**
+  depuis v0.34.0 (la note qui le disait ouvert était périmée).
+- **Le path `s_printchar` non-bufferisé + `s_scroll_oric` est PROPRE.** Nouveau harnais
+  isolé **`test-oric/scroll_unbuf.asm`** (+ `scroll_unbuf_test.sh`) : une longue chaîne
+  (110 chars sans CR) imprimée caractère par caractère sur la dernière ligne hard-wrappe à
+  la colonne 40 et scrolle **sans chevauchement** (3 lignes exactes). **PASS.** Donc le
+  garble n'est **pas** un bug unbuffered+scroll.
+- **Le vrai coupable (banking) est un bug d'exécution résiduel, distinct du scroll.** En
+  banking, advent exécute `z_ins_not_supported` → imprime **`[Not supported]`** (jamais vu
+  en défaut) **alors que le vmap est vérifié PROPRE** (0 entrée hors-story, pas de corruption).
+  Un mauvais opcode est donc décodé/exécuté → un read/exec-path banking renvoie de mauvais
+  octets pour certains accès sans corrompre le vmap. `inc_z_pc_page`/`set_z_pc` (EOR#1
+  intra-bloc) et les 3 sites de skip ont été relus cohérents ; la cause exacte reste à
+  isoler (breakpoint sur `z_ins_not_supported` fait hang l'émulateur headless → à instrumenter
+  autrement). **Chantier banking dédié**, banking reste OFF par défaut.
+### Tests
+- **Nouveau** `test-oric/scroll_unbuf_test.sh` (unbuffered + s_scroll_oric propre). PASS.
+- Non-régression défaut inchangée (czech 349/0, 406/0, HHGG, dragontroll V5, advent V5).
+
 ## [0.36.1] - 2026-08-14 — Fix `s_scroll_oric` : scroll borné (corrige un débordement d'écran + débloque le crash V5 du banking)
 ### Bug corrigé (correctif inconditionnel, améliore le build par défaut)
 `s_scroll_oric` calculait le nombre de lignes à déplacer par `X = s_screen_height − (window_start_row+1) − 1`
