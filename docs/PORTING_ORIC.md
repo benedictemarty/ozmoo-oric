@@ -369,6 +369,15 @@ tentative inline a dérivé sur un descripteur hors borne. Puis **1re exécution
 - [x] Faire tourner un jeu **V5** (objectif final) — ✅ advent_punyinform (80 Ko) jouable + test
       `v5_play_test.sh` (dragontroll) (v0.35.0)
 
+### EPIC 7 — Banking `$C000-$DFFF` (perf) — *opt-in expérimental (v0.36.0)*
+- [x] Implémenté en flag `-DORIC_BANKING` (**OFF par défaut**) : approche « skip du trou »
+      charset/écran `$B400-$BFDF`, blocs étendus `$C000-$DDFF` adressés directs (romdis off),
+      `first_banked=$E0` (cache inerte), vmap relogé `$DE00`, `vmap_max_entries` -12 pages.
+- [x] Validé **V3** : HHGG 42→59 blocs, banking engagé (dump RAM `$C000+` peuplé), texte OK.
+- [ ] **Bug V5 à résoudre** : advent_punyinform crashe au traitement de la saisie avec
+      `-DORIC_BANKING` (OK sans). Cause non isolée (reads/z_pc/EOR#1 vérifiés cohérents).
+      → activer par défaut seulement une fois ce crash V5 corrigé.
+
 ### EPIC 6 — Qualité (transverse, à chaque incrément)
 - [ ] Tests d'assemblage automatisés (build Oric ne régresse pas)
 - [ ] Tests d'exécution headless Phosphoric (comparaison de captures écran texte)

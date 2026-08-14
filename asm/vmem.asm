@@ -627,6 +627,17 @@ load_blocks_from_index
 	asl
 	; Carry is already clear
 	adc vmap_first_ram_page
+!ifdef ORIC_BANKING {
+	; Banking $C000+ : sauter le trou materiel charset/ecran $B400-$BFDF.
+	; Les blocs dont la page calculee atteint $B4 sont reloges a partir de $C0
+	; (RAM overlay directement adressable, romdis off). +$0C garde l'alignement
+	; 2-pages des blocs (aucun bloc ne chevauche le trou).
+	cmp #$b4
+	bcc +
+	clc
+	adc #$0c
++
+}
 
 !ifdef TRACE_FLOPPY {
 	jsr comma
@@ -1101,9 +1112,17 @@ read_byte_at_z_address
 	sty vmap_c64_offset_bank
 }	
 	asl
-	
+
 	; Carry is already clear
 	adc vmap_first_ram_page
+!ifdef ORIC_BANKING {
+	; Banking $C000+ : sauter le trou charset/ecran $B400-$BFDF (cf. load_blocks_from_index)
+	cmp #$b4
+	bcc +
+	clc
+	adc #$0c
++
+}
 ++	sta vmap_c64_offset
 
 
@@ -1253,7 +1272,15 @@ read_byte_at_z_address
 	asl
 	; Carry is already clear
 	adc vmap_first_ram_page
-.store_offset	
+!ifdef ORIC_BANKING {
+	; Banking $C000+ : sauter le trou charset/ecran $B400-$BFDF (cf. load_blocks_from_index)
+	cmp #$b4
+	bcc +
+	clc
+	adc #$0c
++
+}
+.store_offset
 	sta vmap_c64_offset
 
 !ifndef TARGET_PLUS4 {

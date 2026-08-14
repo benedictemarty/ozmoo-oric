@@ -99,15 +99,17 @@
 	TARGET_ASSIGNED = 1
 	NO_COLOUR_MAP = 1      ; Oric = attributs serie, pas de colour-map VIC/TED
 	SUPPORT_REU = 0
-	; Derniere page RAM utilisable par les blocs VMEM non-bankes, +1. CRUCIAL :
-	; sans ca, VMEM_END_PAGE=$00 (=$100) par defaut -> les blocs statiques peuvent
-	; s'etaler jusqu'a $FFFF et ECRASER le vmap ($B000), le jeu de caracteres materiel
-	; Oric ($B400/$B800) et l'ecran ($BB80). Avec un GROS jeu (grosse dynmem ->
-	; vmap_first_ram_page haut, ex. HHGG=$5C) + vmap_max_entries eleve, la corruption
-	; est immediate. On borne a $B0 : blocs non-bankes de vmap_first_ram_page..$AFFF,
-	; vmap a $B000-$B0CC (juste au-dessus, sous le charset $B400). Banking $C000+ non
-	; encore implemente -> VMEM_END_PAGE < first_banked_memory_page ($C0).
+	; Derniere page RAM utilisable par les blocs VMEM, +1.
+	; OFF (defaut) : $B0 -> blocs vmap_first_ram_page..$AFFF, vmap $B000 sous charset $B400.
+	; ON (-DORIC_BANKING, EXPERIMENTAL) : $DE -> blocs ..$B3FF PUIS $C000..$DDFF (trou
+	;   charset/ecran $B400-$BFDF saute via +$0C dans vmem.asm) ; vmap reloge $DE00.
+	;   Gain HHGG 42->59 blocs. Cf. constants-oric.asm : REGRESSE en V5 (crash saisie),
+	;   d'ou le flag OFF par defaut. VMEM_END_PAGE < first_banked ($E0) => cache inerte.
+!ifdef ORIC_BANKING {
+	VMEM_END_PAGE = $de
+} else {
 	VMEM_END_PAGE = $b0
+}
 	!ifndef SLOW {
 		SLOW = 1
 	}
@@ -2419,6 +2421,13 @@ deletable_init
 }
 	sec
 	sbc vmap_first_ram_page
+!ifdef ORIC_BANKING {
+	; retirer les 12 pages ($0C) du trou charset/ecran $B400-$BFDF, non
+	; utilisables par les blocs (skip du trou dans vmem.asm). Sinon on
+	; sur-alloue vmap_max_entries -> des blocs seraient mappes dans le trou.
+	sec
+	sbc #$0c
+}
 	lsr
 	cmp #vmap_max_size ; Maximum space available
 	bcc ++

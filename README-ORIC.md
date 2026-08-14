@@ -85,8 +85,11 @@ Scripts de non-régression headless dans `test-oric/` (build + émulateur + asse
 
 ## Limitations connues / à venir
 
-- Banking `$C000-$FFFF` (RAM overlay sous ROM) non encore implémenté → plus le jeu est
-  gros, plus la pagination disque est fréquente (jouable mais plus lent).
+- Banking `$C000-$DFFF` (RAM overlay sous ROM) : **implémenté en flag opt-in expérimental**
+  `-DORIC_BANKING` (**OFF par défaut**). Fait passer HHGG de 42 à 59 blocs RAM (~40 % de
+  faults disque en moins) et **validé en V3** (HHGG), mais **régresse en V5** (crash de la
+  saisie sur advent) → désactivé par défaut en attendant le débogage. Sans banking (défaut),
+  plus le jeu est gros, plus la pagination disque est fréquente (jouable mais plus lent).
 - Story multi-faces : `read_track_sector` force la face 0 (à étendre pour les jeux
   dépassant une face).
 

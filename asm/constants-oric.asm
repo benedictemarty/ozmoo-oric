@@ -26,8 +26,21 @@ CHARSET_STANDARD      = $b400        ; jeu de caracteres standard (RAM)
 CHARSET_ALT           = $b800        ; jeu alternatif
 
 ; Banking overlay : avec Microdisc, $C000-$FFFF bascule ROM<->RAM overlay.
-; Sedoric et la ROM Microdisc occupent la RAM overlay haute.
-first_banked_memory_page = $c0       ; >>> PORT : a valider vs budget RAM Oric
+; read_track_sector ecrit $0314=$80 -> ROMDIS off => $C000-$DFFF = RAM overlay
+; (persiste sous SEI, Sedoric ne tourne plus) ; $E000-$FFFF reste EPROM/Sedoric.
+; --- OPT-IN via -DORIC_BANKING (EXPERIMENTAL, OFF par defaut) ---
+; ON : les blocs VMEM etendus ($C000-$DDFF) sont adresses DIRECTEMENT (pas de cache) ;
+;   first_banked_memory_page=$E0 desactive le chemin cache (aucun bloc n'atteint $E0),
+;   les blocs du trou charset/ecran $B4-$BF sont skippes vers $C0+ (cf. vmem.asm).
+;   Gain HHGG 42->59 blocs (~40% de faults en moins). VALIDE en V3 (HHGG) MAIS
+;   REGRESSE en V5 : advent_punyinform CRASHE au traitement de la saisie (cause non
+;   isolee ; z_pc et chemins de lecture verifies coherents) -> a debugger avant d'activer.
+; OFF (defaut) : comportement stable v0.35.0 (VMEM_END_PAGE=$B0, vmap $B000, pas de skip).
+!ifdef ORIC_BANKING {
+first_banked_memory_page = $e0       ; $C000-$DFFF adressables directs (romdis off)
+} else {
+first_banked_memory_page = $c0
+}
 
 ; Reset (Atmos BASIC 1.1). >>> PORT : verifier point d'entree exact.
 basic_reset           = $c000        ; >>> PORT TODO (cold start Atmos ~ $F88F)
@@ -122,12 +135,18 @@ directory_buffer      = $0400 ; >>> PORT TODO
 ;    key_repeat, charset_switchable → print_line_from_buffer écrasait le vmap à CHAQUE
 ;    impression de texte → faults suivants mal mappés → z_pc lisait le mauvais bloc →
 ;    opcodes erronés (ex. insert_obj pendant Jumps) → 7 échecs czech en high memory.
-; Relogé en RAM HAUTE LIBRE : au-dessus de la zone des blocs VMEM non-bankés
-;  (vmap_first_ram_page=$3E .. +2*vmap_max_entries($34)=$A5), sous le jeu de caractères
-;  matériel Oric (CHARSET_STANDARD=$B400, CHARSET_ALT=$B800). $B000-$B0CC = 102 entrées,
-;  zone $A600-$B3FF prouvée libre (aucun symbole, hors blocs VMEM et charset).
+; Relogé en RAM HAUTE LIBRE, sous le charset $B400. En mode banking (-DORIC_BANKING)
+;  les blocs VMEM occupent aussi $B000-$B3FF puis $C000-$DDFF -> $B000 tomberait DANS
+;  la zone des blocs, donc le vmap est reloge au sommet de la RAM overlay ($DE00-$DE80,
+;  64 entrees, juste au-dessus des blocs et sous l'EPROM $E000).
+;  Sans banking (defaut) : $B000-$B0CC (102 entrees), zone $A600-$B3FF libre.
+!ifdef ORIC_BANKING {
+vmap_buffer_start     = $DE00
+vmap_buffer_end       = $DE80
+} else {
 vmap_buffer_start     = $B000
 vmap_buffer_end       = $B0CC
+}
 CURRENT_DEVICE        = $00   ; >>> PORT : notion de "device" Sedoric
 
 ; --- Symboles complementaires (placeholders de portage) ----------------------

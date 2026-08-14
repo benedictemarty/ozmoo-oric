@@ -3,6 +3,54 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.36.0] - 2026-08-14 — Banking $C000-$DFFF : implémenté en flag opt-in expérimental (`-DORIC_BANKING`, OFF par défaut)
+### Ce qui est fait
+Le **banking de la RAM overlay `$C000-$DFFF`** (RAM sous la ROM BASIC, exposée quand
+`read_track_sector` met ROMDIS off via `$0314=$80`, persistante sous SEI) est implémenté
+selon l'approche « skip du trou » étudiée en v0.34.0 :
+- Les blocs VMEM occupent `vmap_first_ram_page..$B3FF` **puis** `$C000..$DDFF` ; le **trou
+  matériel charset/écran `$B400-$BFDF`** (12 pages) est **sauté** (`+$0C`) aux **3 sites**
+  qui dérivent une page RAM d'un index vmap (`load_blocks_from_index`, et les 2 chemins de
+  `read_byte_at_z_address`). Les autres dérivations (`opt_optimize_vmem`, `print_vm_map`)
+  ne sont pas compilées sur Oric (`OPTIMIZE_VMEM`/DEBUG absents).
+- `first_banked_memory_page = $E0` → le **chemin cache** (banking C128/REU) reste
+  inatteignable (aucun bloc n'atteint `$E0`) : tous les blocs `$C000+` sont **adressés
+  directement** (RAM plate, romdis off).
+- `vmap_max_entries` **soustrait les 12 pages** du trou ; le **vmap est relogé** `$DE00-$DE80`
+  (au sommet de la RAM overlay, au-dessus des blocs) car `$B000` tombe désormais dans la
+  zone des blocs.
+- **Gain mesuré (HHGG)** : `vmap_max_entries` passe de **42 à 59 blocs** (~40 % de faults
+  disque en moins). **Vérifié on-hardware** : dump RAM en cours de jeu montrant `$C000-$DDFF`
+  peuplé de données de story + vmap correct à `$DE00` + **intro et parser HHGG parfaits**.
+
+### Pourquoi OFF par défaut (honnêteté)
+Le banking est **validé en V3** (HHGG jouable, texte propre, banking effectivement engagé)
+mais **REGRESSE en V5** : `advent_punyinform.z5` (qui tourne parfaitement sans banking,
+cf. v0.35.0) **crashe au moment du traitement de la saisie** (`east` → l'émulateur sort ;
+sans banking la même commande donne « Inside Building »). Diagnostic mené (trace CPU en
+anneau, dumps RAM, mapping des labels) : le blocage observé sans touche est le **[MORE]
+inhérent** à la longue intro (CPU en attente clavier dans `kernal_getchar`), **pas** un
+thrash VMEM (vmap stable) ni une boucle disque ; mais **avec** une commande, advent V5
+crashe. La cause exacte n'a **pas** pu être isolée par inspection (chemins de lecture,
+`set_z_pc`/`get_page_at_z_pc` via `read_byte_at_z_address`, trick EOR#1 intra-bloc : tous
+vérifiés cohérents avec le skip). **Décision : gating opt-in** — le défaut reste le
+comportement stable v0.35.0, le banking devient expérimental à déboguer (spécifique V5)
+avant activation.
+
+### Portée
+- **Défaut (sans `-DORIC_BANKING`)** : `VMEM_END_PAGE=$B0`, vmap `$B000`, `first_banked=$C0`,
+  aucun skip → **identique fonctionnellement à v0.35.0**.
+- **`-DORIC_BANKING`** : `VMEM_END_PAGE=$DE`, vmap `$DE00`, `first_banked=$E0`, skip du trou.
+- Fichiers : `constants-oric.asm` (first_banked, vmap), `ozmoo.asm` (VMEM_END_PAGE,
+  soustraction du trou dans le calcul `vmap_max_entries`), `vmem.asm` (3 sites de skip).
+
+### Tests (build par défaut)
+- Non-régression **complète, verte** : **czech.z3 349/0, czech.z5 406/0**, **HHGG jouable**
+  (V3), **dragontroll.z5 jouable** (V5), **advent_punyinform.z5 jouable** (V5, `> east` →
+  « Inside Building », restauré).
+- Build `-DORIC_BANKING` : assemble (Z3/Z5) ; HHGG V3 jouable + banking engagé (vérifié) ;
+  advent V5 crash (connu, cf. ci-dessus).
+
 ## [0.35.0] - 2026-08-14 — ★★★★ VRAI JEU V5 JOUABLE SUR ORIC (objectif d'origine atteint) ★★★★
 ### La chaîne V5 interactive est validée de bout en bout sur un vrai jeu
 Jusqu'ici la **V5** était prouvée par la conformité (`czech.z5` 406/0) et un **gros jeu réel
