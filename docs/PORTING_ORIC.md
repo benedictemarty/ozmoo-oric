@@ -365,8 +365,9 @@ bruts) **et** marquer ces secteurs occupés dans le bitmap, injecter l'interp AU
 marche de catalogue (chaîne directory `t20s4`) doit être robuste (bornes) — première
 tentative inline a dérivé sur un descripteur hors borne. Puis **1re exécution VMEM**.
 
-- [ ] Faire tourner un jeu **V3** (parité Pinforic) sur Phosphoric
-- [ ] Faire tourner un jeu **V5** (objectif final)
+- [x] Faire tourner un jeu **V3** (parité Pinforic) sur Phosphoric — ✅ HHGG (111 Ko) jouable (v0.32.0)
+- [x] Faire tourner un jeu **V5** (objectif final) — ✅ advent_punyinform (80 Ko) jouable + test
+      `v5_play_test.sh` (dragontroll) (v0.35.0)
 
 ### EPIC 6 — Qualité (transverse, à chaque incrément)
 - [ ] Tests d'assemblage automatisés (build Oric ne régresse pas)

@@ -3,6 +3,50 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.35.0] - 2026-08-14 — ★★★★ VRAI JEU V5 JOUABLE SUR ORIC (objectif d'origine atteint) ★★★★
+### La chaîne V5 interactive est validée de bout en bout sur un vrai jeu
+Jusqu'ici la **V5** était prouvée par la conformité (`czech.z5` 406/0) et un **gros jeu réel
+en V3** (HHGG) était jouable ; le croisement « **vrai jeu V5 jouable** » — l'objectif de
+l'[étude de faisabilité](../ETUDE_FAISABILITE_ORIC_V5.md) — restait à démontrer. C'est fait.
+- **`advent_punyinform.z5`** (Colossal Cave, PunyInform, **V5, 80 Ko**) **boote en VMEM
+  depuis la disquette Sedoric, affiche son intro et RÉPOND aux commandes tapées** :
+  ```
+  Welcome to Adventure!  /  ADVENTURE  /  At End Of Road
+  You are standing at the end of a road before a small brick building...
+  > east
+  Inside Building
+  You are inside a building, a well house for a large spring.
+  There are some keys on the ground here. ... a shiny brass lamp ... an empty bottle here.
+  > 
+  ```
+  Valide **toute la chaîne V5 interactive** : pagination VMEM d'un gros jeu multi-pistes +
+  saisie ligne **`@aread`** (opcode `read` V5, format buffer où **l'octet 1 = nombre de
+  caractères**, distinct du terminateur-0 de `@sread` V3) + écho + **tokenisation V5**
+  (adresses de dictionnaire packées ×4) + parser.
+- Confirmé aussi sur **`dragontroll.z5`** (petit jeu V5 à parser) : `? n` échoé →
+  déplacement de salle (« You are in the desert »).
+
+### Aucune modification du moteur — diagnostic
+La saisie ligne V5 (`@aread`) **fonctionnait déjà** : le path `read_text`/`read_char`
+d'Ozmoo rejoint le **même `kernal_getchar` Oric** que la V3, et `init_read_text_timer`
+sort immédiatement quand aucun timer n'est demandé (`.read_text_time == 0`). L'échec initial
+observé sur le gros jeu était un **artefact de test** (frappe injectée *avant* l'armement de
+`@read`, pendant que le jeu paginait encore) et non un bug : en tapant après l'armement, le
+jeu répond correctement.
+
+### Tests
+- **Nouveau** `test-oric/v5_play_test.sh` — jouabilité V5 **déterministe** : build interp V5
+  VMEM → disquette dragontroll → boot + commande `n` → assertions (intro V5, écho `? n`,
+  changement de salle « desert »). **PASS**. Support versionné (`examples/dragontroll.z5`),
+  rapide (~90 M cycles), sans pagination pendant la saisie (fenêtrage clavier reproductible).
+- Non-régression VMEM : **czech.z3 349/0, czech.z5 406/0** (inchangé — aucun code touché).
+
+### Note (limite du test automatisé)
+Le gros jeu `advent_punyinform.z5` (80 Ko) est validé **manuellement** mais pas retenu comme
+test headless : son long boot + pagination rend l'instant d'armement de `@read` peu
+prédictible, donc le fenêtrage d'injection clavier moins déterministe. `dragontroll` couvre
+**exactement la même chaîne V5** de façon reproductible ; le gros jeu reste une démo manuelle.
+
 ## [0.34.1] - 2026-08-13 — Doc : README du portage (dépôt public)
 - **`README-ORIC.md`** : présentation du portage ORIC (état, architecture, build & run,
   tests, limitations, licence/crédits Ozmoo).

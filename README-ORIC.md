@@ -18,10 +18,13 @@ du jeu depuis la disquette à la demande).
   passe **349/0**.
 - ✅ **Moteur Z-machine V5 en VMEM depuis la disquette** — `czech.z5` passe **406/0**
   (adresses packées ×4, objets 14 octets / 48 attributs, opcodes V5).
-- ✅ **Gros jeu réel jouable** — *The Hitchhiker's Guide to the Galaxy* (V3, **111 Ko**)
+- ✅ **Gros jeu V3 réel jouable** — *The Hitchhiker's Guide to the Galaxy* (V3, **111 Ko**)
   boote, affiche son intro et **répond aux commandes tapées** (parser multi-mots).
-- ✅ **Saisie ligne `@sread`** — clavier complet (matrice Oric), écho, `RETURN`, effacement
-  (`Backspace`/`Delete`), parsing dictionnaire.
+- ✅ **Vrai jeu V5 jouable** — *Adventure / Colossal Cave* (PunyInform, **V5, 80 Ko**) boote
+  en VMEM, affiche son intro et **répond aux commandes** (`> east` → « Inside Building… »).
+  Chaîne V5 interactive complète : `@aread` + écho + tokenisation V5 + parser.
+- ✅ **Saisie ligne `@sread` (V3) et `@aread` (V5)** — clavier complet (matrice Oric), écho,
+  `RETURN`, effacement (`Backspace`/`Delete`), parsing dictionnaire.
 - ✅ **Affichage** — texte, inverse-vidéo (attributs série Oric), ligne de statut V3,
   scroll respectant la fenêtre.
 
@@ -68,7 +71,8 @@ l'affichage de l'intro et du prompt `>`.
 Scripts de non-régression headless dans `test-oric/` (build + émulateur + assertions) :
 
 - `vmem_disk_run.sh <story>` — conformité czech en VMEM disque (V3/V5 auto-détecté).
-- `hhgg_play_test.sh` — jouabilité HHGG (intro + réponse du parser + effacement).
+- `hhgg_play_test.sh` — jouabilité gros jeu V3 (HHGG : intro + réponse du parser + effacement).
+- `v5_play_test.sh` — jouabilité jeu V5 (dragontroll : intro + `@aread`/écho + changement de salle).
 - `kbd_table_test.sh` — table clavier (lettres, chiffres, RETURN=13, DEL=8).
 - `run-test.sh`, `init_e2e.sh`, `czech_test.sh` — écran/clavier/disque, init, conformité tape.
 
