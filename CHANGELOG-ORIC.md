@@ -3,6 +3,28 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.36.8] - 2026-08-15 — Banking étendu à 16 Ko (`$C000-$FDFF`) — +33% de blocs VMEM résidents
+### Extension (opt-in `-DORIC_BANKING`)
+Le banking exploitait `$C000-$DDFF` (8 Ko). `$E000-$FFFF` étant aussi de la RAM sous
+`$0314=$80` (EPROM off, prouvé v0.36.3), on l'ajoute à la zone de blocs VMEM → **16 Ko**.
+- `asm/ozmoo.asm` : `VMEM_END_PAGE` (ORIC_BANKING) `$DE → $FE` (blocs jusqu'à `$FDFF`).
+- `asm/constants-oric.asm` : `first_banked_memory_page $E0 → $FF` (blocs `< $FF` = accès
+  direct, cache inerte) ; `vmap_buffer $DE00-$DE80 → $FE00-$FF00` (64 → **128 entrées** ;
+  `$FF00-$FFFF` laissé libre — vecteurs `$FFFA-$FFFF` non utilisés car SEI).
+- Le trou charset/écran `$B4-$BF` reste sauté par `+$0C` (inchangé). `vmap_max_entries`
+  = `(VMEM_END_PAGE − vmap_first_ram_page − $0C)/2`, borné par `vmap_max_size=128`.
+### Vérifié (on-hardware, banking V5)
+- **advent : `vmap_max_entries` 48 → 64** (+33 % de blocs résidents ; ~28 sans banking) ;
+  `$E000-$FDFF` peuplé de données story (banking 16 Ko **engagé**) ; **0 `[Not supported]`**,
+  advent jouable.
+- **Aventyr (133K) banking 16 Ko** : `bank_biggame_test.sh` PASS.
+- **Non-régression** : czech.z5 VMEM **406/0** (build défaut intact, changements tous
+  sous `!ifdef ORIC_BANKING`).
+### Reste
+Banking **toujours OFF par défaut** (décision de bascule ouverte). Extension au-delà de
+16 Ko impossible (tout `$C000-$FFFF` utilisé). Placement story 2-faces (primitive prête,
+v0.36.7).
+
 ## [0.36.7] - 2026-08-15 — `read_track_sector` : support FACE 1 (bit 7 de la piste) — primitive validée
 ### Ajout — accès à la 2ᵉ face du disque
 `read_track_sector` forçait la **face 0** (`$0314 = $80`, side b4=0). Désormais, si la

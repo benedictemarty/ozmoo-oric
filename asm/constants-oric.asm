@@ -33,9 +33,12 @@ CHARSET_ALT           = $b800        ; jeu alternatif
 ; (banking 16 Ko) exige de revectoriser/abandonner $FFFA-$FFFF (OK car deja SEI) et de
 ; reloger le vmap sous $E000 -- a faire APRES stabilisation du banking 8 Ko.
 ; --- OPT-IN via -DORIC_BANKING (EXPERIMENTAL, OFF par defaut) ---
-; ON : les blocs VMEM etendus ($C000-$DDFF) sont adresses DIRECTEMENT (pas de cache) ;
-;   first_banked_memory_page=$E0 desactive le chemin cache (aucun bloc n'atteint $E0),
-;   les blocs du trou charset/ecran $B4-$BF sont skippes vers $C0+ (cf. vmem.asm).
+; ON : banking 16 Ko. Les blocs VMEM etendus ($C000-$FDFF) sont adresses DIRECTEMENT
+;   (pas de cache) ; first_banked_memory_page=$FF desactive le chemin cache (aucun bloc
+;   n'atteint $FF) ; les blocs du trou charset/ecran $B4-$BF sont skippes vers $C0+
+;   (cf. vmem.asm). $E000-$FFFF est de la RAM sous $0314=$80 (EPROM off, prouve v0.36.3) :
+;   on l'ajoute a la zone de blocs (v0.36.8) ; vmap relogé $FE00-$FEFF (128 entrees) ;
+;   $FF00-$FFFF laisse libre (vecteurs $FFFA-$FFFF non utilises car SEI). VMEM_END_PAGE=$FE.
 ;   Gain HHGG 42->59 blocs (~40% de faults en moins). Le CRASH V5 initial (advent) a ete
 ;   ROOT-CAUSE puis CORRIGE en v0.36.1 : c'etait s_scroll_oric qui debordait de l'ecran
 ;   (compteur de lignes sous-debordant quand une fenetre haute V5 = ecran entier) et
@@ -44,7 +47,7 @@ CHARSET_ALT           = $b800        ; jeu alternatif
 ;   (bug num_rows/word-wrap pre-existant, plus visible en banking a cause du boot plus lent).
 ; OFF (defaut) : comportement stable v0.35.0 (VMEM_END_PAGE=$B0, vmap $B000, pas de skip).
 !ifdef ORIC_BANKING {
-first_banked_memory_page = $e0       ; $C000-$DFFF adressables directs (romdis off)
+first_banked_memory_page = $ff       ; $C000-$FDFF adressables directs (romdis+EPROM off)
 } else {
 first_banked_memory_page = $c0
 }
@@ -142,14 +145,14 @@ directory_buffer      = $0400 ; >>> PORT TODO
 ;    key_repeat, charset_switchable → print_line_from_buffer écrasait le vmap à CHAQUE
 ;    impression de texte → faults suivants mal mappés → z_pc lisait le mauvais bloc →
 ;    opcodes erronés (ex. insert_obj pendant Jumps) → 7 échecs czech en high memory.
-; Relogé en RAM HAUTE LIBRE, sous le charset $B400. En mode banking (-DORIC_BANKING)
-;  les blocs VMEM occupent aussi $B000-$B3FF puis $C000-$DDFF -> $B000 tomberait DANS
-;  la zone des blocs, donc le vmap est reloge au sommet de la RAM overlay ($DE00-$DE80,
-;  64 entrees, juste au-dessus des blocs et sous l'EPROM $E000).
+; Relogé en RAM HAUTE LIBRE, sous le charset $B400. En mode banking (-DORIC_BANKING 16 Ko)
+;  les blocs VMEM occupent $B000-$B3FF puis $C000-$FDFF -> le vmap est reloge tout en haut
+;  de la RAM overlay ($FE00-$FEFF, 128 entrees, juste au-dessus des blocs) ; $FF00-$FFFF
+;  reste libre (vecteurs non utilises car SEI).
 ;  Sans banking (defaut) : $B000-$B0CC (102 entrees), zone $A600-$B3FF libre.
 !ifdef ORIC_BANKING {
-vmap_buffer_start     = $DE00
-vmap_buffer_end       = $DE80
+vmap_buffer_start     = $FE00
+vmap_buffer_end       = $FF00
 } else {
 vmap_buffer_start     = $B000
 vmap_buffer_end       = $B0CC

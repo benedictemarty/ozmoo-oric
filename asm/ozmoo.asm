@@ -101,12 +101,12 @@
 	SUPPORT_REU = 0
 	; Derniere page RAM utilisable par les blocs VMEM, +1.
 	; OFF (defaut) : $B0 -> blocs vmap_first_ram_page..$AFFF, vmap $B000 sous charset $B400.
-	; ON (-DORIC_BANKING, EXPERIMENTAL) : $DE -> blocs ..$B3FF PUIS $C000..$DDFF (trou
-	;   charset/ecran $B400-$BFDF saute via +$0C dans vmem.asm) ; vmap reloge $DE00.
-	;   Gain HHGG 42->59 blocs. Cf. constants-oric.asm : REGRESSE en V5 (crash saisie),
-	;   d'ou le flag OFF par defaut. VMEM_END_PAGE < first_banked ($E0) => cache inerte.
+	; ON (-DORIC_BANKING, 16 Ko) : $FE -> blocs ..$B3FF PUIS $C000..$FDFF (trou
+	;   charset/ecran $B400-$BFDF saute via +$0C dans vmem.asm) ; vmap reloge $FE00-$FEFF.
+	;   $E000-$FFFF = RAM sous $0314=$80 (EPROM off, prouve v0.36.3). Gain vs 8 Ko : +$1E
+	;   pages = +15 blocs residents. VMEM_END_PAGE < first_banked ($FF) => cache inerte.
 !ifdef ORIC_BANKING {
-	VMEM_END_PAGE = $de
+	VMEM_END_PAGE = $fe
 } else {
 	VMEM_END_PAGE = $b0
 }
