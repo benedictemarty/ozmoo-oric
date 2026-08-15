@@ -3,6 +3,36 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.36.5] - 2026-08-15 — ★ BUG BANKING V5 CORRIGÉ : l'écriture RAM-couleur (COLOURFUL_LOWER_WIN) corrompait un bloc VMEM
+### Cause racine (enfin isolée) — écriture couleur parasite sur Oric
+Un **watchpoint écriture** ajouté à Phosphoric (`ORIC_WATCH=lo:hi:fichier`, cf. son
+CHANGELOG) a capturé le *writer* des 37 zéros de `$C300` : **`PC=$0C66` =
+`print_line_from_buffer` (`screen.asm`), instruction `sta (zp_colourline),y`**, gardée par
+**`COLOURFUL_LOWER_WIN`**. Or `ozmoo.asm:317` fait `!ifdef Z5PLUS { COLOURFUL_LOWER_WIN=1 }`
+→ **actif en V5** (d'où le bug V5-only : V3 ne le définit pas). Sur Oric, l'écran est en
+**attributs série `NO_COLOUR_MAP`** (pas de colour RAM) ; ce `sta (zp_colourline),y` est
+**inutile** et son `zp_colourline` pointe hors écran, en `$C000+`. **Inoffensif en build
+défaut** (`$C000+` inutilisé) mais **il écrasait le bloc VMEM 62 (page `$C300`) en banking**
+→ `z_pc` exécutait des zéros → `[Not supported]`. Le zeroing progressif (0→20→37) = la boucle
+de remplissage couleur ligne par ligne de `print_line_from_buffer`.
+### Fix
+`screen.asm` : le bloc couleur `COLOURFUL_LOWER_WIN` de `.printline40` (`sta (zp_colourline),y`)
+est désormais **doublement gardé `!ifndef NO_COLOUR_MAP`** → aucune écriture couleur sur Oric.
+Correction minimale, 1 site (le seul en code partagé hors chemin C128/X16/MEGA65).
+### Vérifié
+- **advent_punyinform.z5 en banking : JOUABLE** (« At End Of Road », prompt `>`, **plus de
+  `[Not supported]`**) ; `$C300` = données story correctes à 80M (0 zéro) ; le watchpoint ne
+  voit plus d'écriture depuis `$0C66` (ne restent que les chargements légitimes
+  `read_track_sector`).
+- **Non-régression** : czech.z3 voie B **349/0**, czech.z5 VMEM disque **406/0** (le fix
+  touche tout build Oric via `NO_COLOUR_MAP` mais ne retire qu'une écriture sans effet).
+- **Nouveau test** `test-oric/bank_v5_test.sh` : build banking V5 + advent + assertions
+  (pas de `[Not supported]`, intro visible, `$C300` non zéroté) → **PASS**.
+### Reste
+Banking **toujours OFF par défaut** : ce fix lève le *crash* V5 ; reste à valider l'affichage
+sur un long playthrough (garble cosmétique éventuel sous scroll/[MORE] intensif) avant
+d'envisager banking-on par défaut. Extension 16 Ko (`$E000-$FFFF`, cf. 0.36.3) ensuite.
+
 ## [0.36.4] - 2026-08-15 — Debug banking V5 : la corruption `$C300` DIRECTEMENT ROOT-CAUSÉE du `[Not supported]` ; writer pas encore isolé
 ### Contexte
 Reprise du bug banking V5 (advent, `-DORIC_BANKING`) : `[Not supported]` imprimé,

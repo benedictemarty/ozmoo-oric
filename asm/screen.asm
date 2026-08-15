@@ -796,6 +796,12 @@ print_line_from_buffer
 		ora print_buffer2,y
 		sta (zp_screenline),y
 	!ifdef COLOURFUL_LOWER_WIN {
+	!ifndef NO_COLOUR_MAP {
+	; Oric (NO_COLOUR_MAP) : attributs serie, pas de colour RAM. En Z5+,
+	; COLOURFUL_LOWER_WIN=1 activait ici `sta (zp_colourline),y` avec un
+	; zp_colourline pointant hors zone ecran ($C000+) : inoffensif en build
+	; defaut ($C000+ inutilise) mais CORROMPAIT un bloc VMEM en banking
+	; (page $C300 = bloc 62 -> z_pc executait des zeros -> [Not supported]).
 	!ifdef TARGET_PLUS4 {
 		ldx s_colour
 		lda plus4_vic_colours,x
@@ -803,6 +809,7 @@ print_line_from_buffer
 		lda s_colour
 	}
 		sta (zp_colourline),y
+	}
 	}
 		iny
 		bne - ; Always branch
