@@ -3,6 +3,33 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.38.0] - 2026-08-16 — Accents FRANÇAIS à l'écran (`-DORIC_ACCENTS`) — jeux français lisibles
+### Fonctionnalité (opt-in `-DORIC_ACCENTS`)
+L'Oric n'a pas d'accents dans sa police → les jeux français affichaient é→e, à→a, ç→c
+(strip ASCII de `default_unicode_out`, streams.asm). On les **ajoute** :
+- **`asm/accents-oric.asm`** (nouveau) : au boot, `oric_load_accent_glyphs` construit
+  14 glyphes accentués (**é è ê ë à â ù û î ï ô ç ü ö**) dans le charset RAM `$B400` — il
+  lit le glyphe de la lettre de base, surimpose une marque d'accent (rangées 0-1, libres
+  sur les minuscules) et une cédille (rangée 7), puis l'écrit dans un slot de code écran
+  « rare » réaffecté (`@ # $ % & [ \ ] ^ _ \` { } ~`, peu utilisés en prose française).
+- `asm/streams.asm` : `translate_zscii_to_petscii` (garde `ORIC_ACCENTS`) mappe les codes
+  ZSCII accentués (155-251) vers ces codes écran au lieu de les stripper.
+- `asm/ozmoo.asm` : source du module + appel à `program_start` (police ROM déjà en place),
+  le tout sous `!ifdef ORIC_ACCENTS`.
+### Pourquoi opt-in
+Le rendu réaffecte des symboles ASCII (dont `[` `]`, utilisés par des jeux anglais). Le
+flag garde le build par défaut (anglais) **intact** ; les jeux FR se construisent avec
+`-DORIC_ACCENTS`.
+### Vérifié
+- **`L'Aventure` (Colossal Cave FR, V5)** : `é` `è` `ç` `ë`… rendus à l'écran (glyphes
+  construits dans `$B400` vérifiés + codes mappés présents à l'écran).
+- **Nouveau test `test-oric/accents_test.sh`** (défaut `aventure_fr.z5`) : PASS.
+- **Non-régression SANS le flag** : czech.z3 **349/0** (English/test inchangés).
+### Notes
+Jeux FR sur IF Archive (`games/zcode/french/`) ; fichier non versionné (défaut
+`/home/bmarty/42/aventure_fr.z5`). Set courant = 14 accents minuscules ; les majuscules
+accentuées (É À Ç…) restent strippées (extensible plus tard).
+
 ## [0.37.1] - 2026-08-16 — Buffer `disk_info` Oric à 200 o → V8 MAXIMAL (512K) : Heroine jouable
 ### Problème
 Un V8 proche du maximum (Heroine, **511K**) s'étale sur ~140 pistes linéaires (2 faces) →

@@ -841,6 +841,21 @@ translate_zscii_to_petscii
 	dey
 	bpl -
 .no_match
+!ifdef ORIC_ACCENTS {
+	; Accents français (opt-in -DORIC_ACCENTS) : mappe le code ZSCII accentué vers un
+	; code écran Oric dédié (glyphe construit dans le charset par
+	; oric_load_accent_glyphs). Sinon on retombe sur le strip ASCII par défaut ci-dessous.
+	ldy #N_ACCENTS-1
+-	cmp oric_accent_zscii,y
+	beq .oric_accent_hit
+	dey
+	bpl -
+	jmp .oric_accent_miss
+.oric_accent_hit
+	lda oric_accent_code,y
+	jmp .ldy_and_return
+.oric_accent_miss
+}
 !ifndef NO_DEFAULT_UNICODE_MAP {
 	cmp #155
 	bcc .no_mapping

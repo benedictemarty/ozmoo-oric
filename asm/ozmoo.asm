@@ -349,6 +349,9 @@ program_start
 -	jmp -
 }
 	jsr kbd_init          ; EPIC 3 : init matrice clavier Oric (DDRB + PSG R7)
+!ifdef ORIC_ACCENTS {
+	jsr oric_load_accent_glyphs  ; accents FR : glyphes accentués dans le charset $B400
+}
 }
 !ifdef TARGET_C128 {
 	lda #%00001110 ; 48K RAM0 (0-$c000)
@@ -1206,6 +1209,9 @@ statmem_reu_banks !byte 0
 !ifdef TARGET_ORIC {
 !source "screenkernal-oric.asm"
 !source "keyboard-oric.asm"    ; EPIC 3 : kernal_getchar / kernal_delay_1ms / read_key
+!ifdef ORIC_ACCENTS {
+!source "accents-oric.asm"     ; accents FR : glyphes accentués + mapping ZSCII->code écran
+}
 } else {
 !source "screenkernal.asm"
 }
