@@ -32,10 +32,23 @@ Repro : `-DORIC_BANKING -DZ5 -DVMEM -DCONF_TRK=15` + `build_game_disk.py … adv
   corrigée : `$C300` EST sur le chemin z_pc et sa corruption est la cause).
 - **`CHECK_ERRORS` = repro déterministe** (halt sur l'opcode fautif) bien plus exploitable
   que le `[Not supported]` non-fatal qui défile.
-### Reste (cause racine du *writer* non isolée)
-Qui écrit les 37 zéros à `$C300` ? Réfuté : disque, dynmem-write. Prochaine étape :
-binary-search du cycle exact dans `[60M,80M]` puis `--trace-ring` pour capter le `STA`
-ciblant `$C3xx` (piste : taille ~37-40 ≈ largeur écran 40 → buffer mal pointé ?).
+### Chasse au *writer* — fortement resserrée (cause exacte encore non capturée)
+- **Fenêtre pincée à `73,66M–73,69M`** (repro déterministe : clés à 40M+70M ; l'écrasement
+  survient ~3,6M cycles après la touche qui dismisse un `[MORE]` à 70M).
+- **Le zeroing est PROGRESSIF** : `0 → 20 (73,67M) → 37 (73,69M)` = **plusieurs events**,
+  pas un memset unique.
+- **Réfuté aussi** (cette passe) : (d) **débordement de pile z** — `stack_ptr=$3624`, pile
+  `$3600-$39FF` (`stack_start=$3600`, `stack_size=$0400`), pas `$C300` ; les `STA ($7A),Y`
+  vus dans la trace sont l'init normale des locals de `stack_call_routine` ; (e) **chargement
+  disque frais** — aucun `readblock` (`$10xx`) dans la fenêtre, `readblocks_mempos=$D200`
+  (≠`$C200`) ; (f) **copie de page entière** — seuls 37 octets changent (pas 256) ;
+  (g) **memset contigu** — rafale max de 6 stores-zéro consécutifs.
+- **Limite de méthode atteinte** : les stores fautifs sont **indirects** (`STA ($zp),Y`),
+  la trace CPU ne résout pas la cible et le snapshot ZP ne la reconstitue pas de façon
+  fiable ; l'émulateur headless n'a **pas de watchpoint en écriture** (`-b`=PC fait hang).
+- **OUTIL DÉCISIF RECOMMANDÉ** : ajouter un **watchpoint écriture sur `$C300`** à
+  l'émulateur Phosphoric (source dans `~/Oric1/src`) — loggerait `PC + cycle` du `STA`
+  fautif en un seul run. C'est la voie propre vs la trace-ring (rendements décroissants).
 **Banking toujours OFF par défaut** ; non-régression build défaut inchangée (czech 349/0,
 406/0, advent/HHGG/dragontroll jouables).
 
