@@ -75,16 +75,19 @@ readblocks_currentblock_adjusted	!byte 0,0 ; 257 = ff 1
 readblocks_mempos		!byte 0,0 ; $2000 = 00 20
 disk_info
 !ifndef Z4PLUS {
-	!fill 71
+	!fill 71            ; V1-3 : tient toujours sur 1 face (story max 128K)
+} else {
+!ifdef TARGET_ORIC {
+	; Oric : la story peut s'étaler sur 2 FACES (pistes linéaires 0..2×80). Le
+	; disk_info = 11 + nb_pistes ; jusqu'à ~160 pistes -> 200 o couvre tout V4+/V8.
+	!fill 200
+} else {
+	!ifdef Z7PLUS {
+		!fill 150
+	} else {
+		!fill 94
+	}
 }
-!ifdef Z4 {
-	!fill 94
-}
-!ifdef Z5 {
-	!fill 94
-}
-!ifdef Z7PLUS {
-	!fill 150
 }
 
 readblocks

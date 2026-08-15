@@ -186,7 +186,7 @@ def build(master, interp_bin, story_path, out_dsk, name="OZMOO",
 
     di_full = od.build_full_disk_info(p.config_track_map, interleave=0)
     ver = story[0]
-    di_cap = 71 if ver < 4 else (94 if ver < 7 else 150)   # cf. disk.asm !fill par version
+    di_cap = 71 if ver < 4 else 200   # cf. disk.asm !fill (Oric : 200 o pour V4+, story 2-faces)
     if len(di_full) > di_cap:
         sys.exit(f"disk_info trop grand ({len(di_full)} o > {di_cap} o pour V{ver}) — story "
                  f"étalée sur trop de pistes ({last_story_track}). Réduire la fragmentation "

@@ -3,6 +3,26 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.37.1] - 2026-08-16 — Buffer `disk_info` Oric à 200 o → V8 MAXIMAL (512K) : Heroine jouable
+### Problème
+Un V8 proche du maximum (Heroine, **511K**) s'étale sur ~140 pistes linéaires (2 faces) →
+`disk_info` = 162 o > **150 o** (buffer `!fill` pour V7+). `build_game_disk` échouait
+(« disk_info trop grand »).
+### Fix
+- `asm/disk.asm` : le buffer `disk_info` passe à **200 o pour TARGET_ORIC en V4+** (les
+  autres cibles inchangées : V4/V5=94, V7+=150). 200 o = 11 + jusqu'à ~189 pistes → couvre
+  TOUT l'espace 2-faces (≤ 160 pistes linéaires) pour n'importe quel V4/V5/V7/V8.
+- `tools/build_game_disk.py` : `di_cap` = 71 (V3) sinon **200** (aligné sur le buffer Oric).
+### Vérifié
+- **Heroine (511K, V8, taille MAXIMALE) : construit ET joue** — narration affichée
+  correctement, **0 `[Not supported]`**, blocs VMEM **1002/1003 (face 1 profonde) résidents
+  == story** (face-1 validée à l'extrême ; story pistes 15-140, face 1 physique 0-60).
+- **Non-régression** (le buffer V5 94→200 décale la RAM basse) : czech.z5 VMEM **406/0**,
+  Jigsaw 2-faces, Aventyr banking — tous PASS.
+### Portée
+Le portage couvre désormais **toute la gamme V8 jusqu'au maximum de 512 Ko** sur 2 faces.
+`bank_2face_test.sh /home/bmarty/42/heroine.z8` teste ce cas extrême (jeu non versionné).
+
 ## [0.37.0] - 2026-08-16 — ★★★ STORY 2-FACES + V8 : Jigsaw (298K, V8) jouable sur Oric ★★★
 ### Jalon
 Premier jeu **V8** ET premier jeu **2-faces** sur le portage : **Jigsaw** (Graham Nelson,
