@@ -3,6 +3,42 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.36.4] - 2026-08-15 — Debug banking V5 : la corruption `$C300` DIRECTEMENT ROOT-CAUSÉE du `[Not supported]` ; writer pas encore isolé
+### Contexte
+Reprise du bug banking V5 (advent, `-DORIC_BANKING`) : `[Not supported]` imprimé,
+corruption du bloc 62 (page `$C2-$C3`) soupçonnée en v0.36.2 sans mécanisme établi.
+Repro : `-DORIC_BANKING -DZ5 -DVMEM -DCONF_TRK=15` + `build_game_disk.py … advent_punyinform.z5`.
+### Hypothèses RÉFUTÉES (chacune par un test)
+- **Lecture disque en zone banked** : nouveau harnais isolé `test-oric/bank_readboundary.asm`
+  (lit un bloc 512 o dans `$C200/$C300` via `read_track_sector`, disque à motif non-nul
+  `byte[i]=(i+1)&$FF`). Résultat **propre** : `$C300` = `01 02 … 18`, frontière `$C2FF→$C300`
+  intacte, contrôle `$6000` identique. → **`read_track_sector` ne perd PAS d'octets** à la
+  frontière de page en zone banked.
+- **Écriture hors-dynmem (`write_next_byte`)** : `-DCHECK_ERRORS` en banking lève
+  `FATAL ERROR: 8` = `ERROR_OPCODE_NOT_IMPLEMENTED`, **PAS** `13` (`ERROR_WRITE_ABOVE_DYNMEM`).
+  De plus `story_start=$3A00`, dynmem = `$3A00-$71FF` → **n'atteint jamais `$C300`**.
+- **Éviction/mauvais mapping vmap** : l'entrée vmap 34 (page `$C2`) garde `vmap_z_l=$3E`
+  **stable** (60M→218M), seuls les bits d'âge de `vmap_z_h` changent → le vmap **croit le
+  bloc valide** là où la RAM est écrasée.
+### Établi (vérifié, aucune supposition)
+- **C'est un ÉCRASEMENT, pas une donnée disque erronée** : `$C300` contient les **bonnes
+  données story à 60M** (`01 7f ff 03 c9 8f …`, = story offset `$7C00`+256, 0 zéro en tête)
+  puis, entre ~60M et ~80M, **exactement ses 37 premiers octets passent à `$00`** (page 1
+  `$C200` et la fin `$C325+` restent intactes ; événement unique).
+- **La corruption CAUSE directement le mauvais opcode** : au halt `CHECK_ERRORS`,
+  `z_pc_mempointer = $C307` → l'interpréteur **exécute du code depuis la page corrompue**
+  (offset +7, dans les 37 octets zérotés) → lit un octet nul → opcode invalide → `[Not supported]`.
+  ⇒ **un seul bug** (la note v0.36.2 « le flux a divergé ailleurs, `$C300` incident » est
+  corrigée : `$C300` EST sur le chemin z_pc et sa corruption est la cause).
+- **`CHECK_ERRORS` = repro déterministe** (halt sur l'opcode fautif) bien plus exploitable
+  que le `[Not supported]` non-fatal qui défile.
+### Reste (cause racine du *writer* non isolée)
+Qui écrit les 37 zéros à `$C300` ? Réfuté : disque, dynmem-write. Prochaine étape :
+binary-search du cycle exact dans `[60M,80M]` puis `--trace-ring` pour capter le `STA`
+ciblant `$C3xx` (piste : taille ~37-40 ≈ largeur écran 40 → buffer mal pointé ?).
+**Banking toujours OFF par défaut** ; non-régression build défaut inchangée (czech 349/0,
+406/0, advent/HHGG/dragontroll jouables).
+
 ## [0.36.3] - 2026-08-15 — Preuve empirique : `$E000-$FFFF` est de la RAM sous `$0314=$80` (banking 16 Ko possible)
 ### Découverte (issue du portage Civilization Oric)
 Le projet Civilization/Oric a démontré que le **banc haut `$E000-$FFFF` (8 Ko)** du Microdisc
