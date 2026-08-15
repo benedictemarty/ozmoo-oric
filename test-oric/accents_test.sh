@@ -33,13 +33,15 @@ d=open(sys.argv[1],'rb').read(); scr=open(sys.argv[2]).read()
 def gl(code): return [d[0xB400+code*8+r]&0x3F for r in range(8)]
 e_acute=gl(123)   # é : accent (rangees 0-1 non nulles) + corps 'e'
 c_ced=gl(36)      # ç : corps 'c' + cedille (rangee 7 non nulle)
+E_acute=gl(42)    # É (majuscule) : marque rangee 0 + corps 'E' decale
 ok_e = (e_acute[0]!=0 or e_acute[1]!=0) and e_acute[4]!=0   # accent present + barre du e
 ok_c = c_ced[7]!=0 and c_ced[2]!=0                          # cedille + haut du c
+ok_E = E_acute[0]!=0 and E_acute[1]!=0                      # accent maj (r0) + haut du E decale (r1)
 # un code reaffecte doit apparaitre a l'ecran (jeu FR affiche des accents)
 mapped=set("{}~`\\^[]_@#$%&")
 seen=any(ch in mapped for ch in scr)
-print(f"slot123(é): accent+e={ok_e}  slot36(ç): c+cedille={ok_c}  code accentue a l'ecran={seen}")
-ok = ok_e and ok_c and seen
+print(f"slot123(é):{ok_e}  slot36(ç):{ok_c}  slot42(É):{ok_E}  code accentue a l'ecran={seen}")
+ok = ok_e and ok_c and ok_E and seen
 print("PASS: accents FR construits dans le charset ET rendus a l'ecran" if ok else "FAIL: accents absents")
 sys.exit(0 if ok else 1)
 PY

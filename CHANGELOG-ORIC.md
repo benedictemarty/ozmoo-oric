@@ -8,10 +8,13 @@ Format inspiré de Keep a Changelog. Le portage suit une logique agile
 L'Oric n'a pas d'accents dans sa police → les jeux français affichaient é→e, à→a, ç→c
 (strip ASCII de `default_unicode_out`, streams.asm). On les **ajoute** :
 - **`asm/accents-oric.asm`** (nouveau) : au boot, `oric_load_accent_glyphs` construit
-  14 glyphes accentués (**é è ê ë à â ù û î ï ô ç ü ö**) dans le charset RAM `$B400` — il
-  lit le glyphe de la lettre de base, surimpose une marque d'accent (rangées 0-1, libres
-  sur les minuscules) et une cédille (rangée 7), puis l'écrit dans un slot de code écran
-  « rare » réaffecté (`@ # $ % & [ \ ] ^ _ \` { } ~`, peu utilisés en prose française).
+  **19 glyphes accentués** dans le charset RAM `$B400` — **14 minuscules**
+  (é è ê ë à â ù û î ï ô ç ü ö) + **5 majuscules** (É È À Ç Ê). Deux modes : minuscule =
+  lettre de base + marque 2 rangées (rangées 0-1 libres) ; MAJUSCULE = lettre décalée d'1
+  rangée + marque 1 rangée (les capitales occupent toute la hauteur) ; cédille en rangée 7.
+  Chaque glyphe est écrit dans un slot de code écran « rare » réaffecté
+  (`@ # $ % & [ \ ] ^ _ \` { } ~` pour les minuscules, `* + | = <` pour les majuscules ;
+  `>` = prompt, jamais réaffecté).
 - `asm/streams.asm` : `translate_zscii_to_petscii` (garde `ORIC_ACCENTS`) mappe les codes
   ZSCII accentués (155-251) vers ces codes écran au lieu de les stripper.
 - `asm/ozmoo.asm` : source du module + appel à `program_start` (police ROM déjà en place),
@@ -27,8 +30,9 @@ flag garde le build par défaut (anglais) **intact** ; les jeux FR se construise
 - **Non-régression SANS le flag** : czech.z3 **349/0** (English/test inchangés).
 ### Notes
 Jeux FR sur IF Archive (`games/zcode/french/`) ; fichier non versionné (défaut
-`/home/bmarty/42/aventure_fr.z5`). Set courant = 14 accents minuscules ; les majuscules
-accentuées (É À Ç…) restent strippées (extensible plus tard).
+`/home/bmarty/42/aventure_fr.z5`). Set courant = **19 accents** (14 minuscules + 5
+majuscules É È À Ç Ê). Les autres majuscules accentuées (Î Ô Û Ë Ï…) restent strippées
+(plus de slots de symboles rares disponibles ; extensible en sacrifiant d'autres codes).
 
 ## [0.37.1] - 2026-08-16 — Buffer `disk_info` Oric à 200 o → V8 MAXIMAL (512K) : Heroine jouable
 ### Problème

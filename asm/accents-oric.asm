@@ -2,94 +2,100 @@
 ; accents-oric.asm — rendu des caractères accentués FRANÇAIS sur l'écran Oric
 ; -----------------------------------------------------------------------------
 ; L'Oric n'a pas d'accents dans sa police. On les AJOUTE au boot : pour chaque
-; accent, on lit le glyphe de la lettre de base dans le charset RAM ($B400), on
-; surimpose une marque d'accent (rangées 0-1, libres sur les minuscules) et une
-; cédille (rangée 7), puis on écrit le glyphe résultant dans un slot de code écran
-; « rare » réaffecté (symboles ASCII @ # $ % & [ \ ] ^ _ ` { } ~ peu utilisés en
-; prose française). translate_zscii_to_petscii (streams.asm, garde TARGET_ORIC)
-; mappe les codes ZSCII accentués (155-251) vers ces codes écran.
+; accent, on part du glyphe de la lettre de base (charset RAM $B400) et on
+; surimpose une marque d'accent, puis on écrit le résultat dans un slot de code
+; écran « rare » réaffecté (symboles ASCII peu utilisés en prose française).
+; translate_zscii_to_petscii (streams.asm, garde ORIC_ACCENTS) mappe les codes
+; ZSCII accentués (155-251) vers ces codes écran.
 ;
-; Charset Oric : glyphe du code C à $B400 + C*8 ; 8 rangées, 6 px (bits 5..0,
-; bit 5 = pixel de gauche).
+; Deux modes (les MINUSCULES ont les rangées 0-1 libres, pas les MAJUSCULES) :
+;   - minuscule : copie directe + marque 2 rangées (0-1).
+;   - MAJUSCULE : lettre décalée d'1 rangée vers le bas (1-7) + marque 1 rangée (0).
+;   - cédille (ç/Ç) : pas de décalage, cédille en rangée 7.
+; Encodage oric_accent_mark : bits 0-2 = index marque (0=aigu 1=grave 2=circ
+;   3=tréma 4=aucune) ; bit6 = MAJUSCULE (décalage+marque 1 rangée) ; bit7 = cédille.
+;
+; Charset Oric : glyphe du code C à $B400 + C*8 ; 8 rangées, 6 px (bit 5 = gauche).
+; Utilise les pointeurs ZP $fb/$fc (source) et $fd/$fe (dest) — libres au boot.
 ; =============================================================================
 
-N_ACCENTS = 14
+N_ACCENTS = 19
 
-; Codes ZSCII source (cf. table Unicode par défaut Z-machine, 155..)
 oric_accent_zscii
-	!byte 170,182,192,164,181,191,185,195,193,165,194,213,157,156
-	;      é   è   ê   ë   à   â   ù   û   î   ï   ô   ç   ü   ö
-; Code écran Oric cible (parallèle) — symboles réaffectés
+	!byte 170,182,192,164,181,191,185,195,193,165,194,213,157,156   ; é è ê ë à â ù û î ï ô ç ü ö
+	!byte 176,187,186,214,197                                       ; É È À Ç Ê
 oric_accent_code
-	!byte '{','}','~',96, 92,'^','[',']','_','@','#','$','%','&'
-; Lettre de base (code ASCII) dont on part
+	!byte '{','}','~',96, 92,'^','[',']','_','@','#','$','%','&'     ; minuscules
+	!byte '*','+','|','=','<'                                       ; majuscules
 oric_accent_base
 	!byte 'e','e','e','e','a','a','u','u','i','i','o','c','u','o'
-; Index de marque (0=aigu 1=grave 2=circonflexe 3=tréma 4=aucune) ; bit7 = cédille
+	!byte 'E','E','A','C','E'
 oric_accent_mark
-	!byte 0,  1,  2,  3,  1,  2,  1,  2,  2,  3,  2,  $84,3,  3
-	;     é   è   ê   ë   à   â   ù   û   î   ï   ô   ç   ü   ö
+	!byte 0,  1,  2,  3,  1,  2,  1,  2,  2,  3,  2,  $84,3,  3      ; ç = aucune+cédille
+	!byte $40,$41,$41,$84,$42                                       ; É=maj+aigu È/À=maj+grave Ç=cédille Ê=maj+circ
 
-; Marques (rangées 0-1), 2 octets chacune, 6 px alignés à gauche
-oric_mark_rows
-	!byte %00000110,%00001100    ; 0 aigu   ´
-	!byte %00011000,%00001100    ; 1 grave  `
-	!byte %00001100,%00010010    ; 2 circonflexe ^
-	!byte %00010010,%00000000    ; 3 tréma  ¨
-	!byte %00000000,%00000000    ; 4 aucune (ç : marque nulle + cédille)
-CEDIL_ROW = %00001100            ; cédille (rangée 7)
+; marques 2 rangées (minuscules), 2 octets/entrée, index 0-4
+oric_mark2
+	!byte %00000110,%00001100    ; 0 aigu
+	!byte %00011000,%00001100    ; 1 grave
+	!byte %00001100,%00010010    ; 2 circonflexe
+	!byte %00010010,%00000000    ; 3 tréma
+	!byte %00000000,%00000000    ; 4 aucune
+; marques 1 rangée (majuscules), 1 octet/entrée, index 0-3
+oric_mark1
+	!byte %00001100    ; 0 aigu
+	!byte %00011000    ; 1 grave
+	!byte %00001010    ; 2 circonflexe
+	!byte %00010010    ; 3 tréma
+CEDIL_ROW = %00001100
 
-.mtmp !byte 0,0
-.cta_lo !byte 0
-.cta_savex !byte 0
+.acc_x   !byte 0
+.acc_m0  !byte 0
+.acc_m1  !byte 0
 
-; A = code écran -> renvoie l'adresse $B400 + code*8 (A=lo, Y=hi). Préserve X.
-.code_to_addr
-	stx .cta_savex
-	asl : sta .cta_lo : lda #0 : rol   ; *2
-	asl .cta_lo : rol                  ; *4
-	asl .cta_lo : rol                  ; *8
-	clc : adc #$b4 : tay               ; + $B400 -> hi
-	lda .cta_lo
-	ldx .cta_savex
+; A = code écran -> pose $B400 + code*8 dans (lo)=A_out ; écrit dans $fb/$fc.
+.set_src
+	sta .acc_m0 : lda #0 : sta $fc : lda .acc_m0
+	asl : rol $fc : asl : rol $fc : asl : rol $fc     ; *8
+	sta $fb : lda $fc : clc : adc #$b4 : sta $fc
+	rts
+.set_dst
+	sta .acc_m0 : lda #0 : sta $fe : lda .acc_m0
+	asl : rol $fe : asl : rol $fe : asl : rol $fe
+	sta $fd : lda $fe : clc : adc #$b4 : sta $fe
 	rts
 
-; Construit tous les glyphes accentués dans le charset. À appeler au boot APRÈS que
-; la police ROM est en place à $B400 (cas au démarrage Oric).
 oric_load_accent_glyphs
 	ldx #0
 .al_next
-	lda oric_accent_base,x
-	jsr .code_to_addr
-	sta .al_rd+1 : sty .al_rd+2          ; src = base
-	lda oric_accent_code,x
-	jsr .code_to_addr
-	sta .al_wr+1 : sty .al_wr+2          ; dst (copie)
-	sta .al_m0+1 : sty .al_m0+2          ; dst (marque r0)
-	sta .al_m1+1 : sty .al_m1+2          ; dst (marque r1)
-	sta .al_ced+1 : sty .al_ced+2        ; dst (cédille r7)
-	; copie 8 octets base -> dst
-	ldy #7
-.al_rd	lda $b400,y
-.al_wr	sta $b400,y
-	dey
-	bpl .al_rd
-	; surimpose la marque (rangées 0-1)
+	stx .acc_x
+	lda oric_accent_base,x : jsr .set_src
+	ldx .acc_x
+	lda oric_accent_code,x : jsr .set_dst
+	ldx .acc_x
 	lda oric_accent_mark,x
-	and #$0f
-	asl                                  ; *2 (2 octets/marque)
-	tay
-	lda oric_mark_rows,y   : sta .mtmp
-	lda oric_mark_rows+1,y : sta .mtmp+1
-	ldy #0 : lda .mtmp
-.al_m0	sta $b400,y
-	ldy #1 : lda .mtmp+1
-.al_m1	sta $b400,y
-	; cédille (rangée 7) si bit7 du mark
+	and #$40
+	bne .al_upper
+	; --- MINUSCULE : copie directe + marque 2 rangées ---
+	ldy #7
+.al_cl	lda ($fb),y : sta ($fd),y : dey : bpl .al_cl
+	lda oric_accent_mark,x : and #$07 : asl : tay
+	lda oric_mark2,y   : sta .acc_m0
+	lda oric_mark2+1,y : sta .acc_m1
+	ldy #0 : lda .acc_m0 : sta ($fd),y
+	iny    : lda .acc_m1 : sta ($fd),y
+	jmp .al_ced
+.al_upper
+	; --- MAJUSCULE : copie décalée (dst[r+1]=src[r], r=0..6) + marque 1 rangée ---
+	ldy #6
+.al_cu	lda ($fb),y : iny : sta ($fd),y : dey : dey : bpl .al_cu
+	lda oric_accent_mark,x : and #$07 : tay
+	lda oric_mark1,y
+	ldy #0 : sta ($fd),y
+.al_ced
 	lda oric_accent_mark,x
 	bpl .al_noced
-	ldy #7 : lda #CEDIL_ROW
-.al_ced	sta $b400,y
+	ldy #7 : lda #CEDIL_ROW : sta ($fd),y
 .al_noced
 	inx
 	cpx #N_ACCENTS
