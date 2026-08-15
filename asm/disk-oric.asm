@@ -37,28 +37,7 @@ TRACKS_PER_SIDE = 80
 read_track_sector
 	sta rts_track
 	stx rts_sector
-	; Face : readblock fournit une piste LINÉAIRE (1..N, jamais de bit 7). Une piste
-	; >= TRACKS_PER_SIDE est sur la FACE 1 -> side b4=1, piste physique = piste - TPS.
-	ldx #$80             ; FDC_CTRL base : drive 0, side 0, EPROM off, IRQ off
-	lda rts_track
-	cmp #TRACKS_PER_SIDE
-	bcc +
-	sbc #TRACKS_PER_SIDE ; (carry déjà set par cmp) piste physique face 1
-	sta rts_track
-	ldx #$90             ; face 1 : side (b4) = 1
-+	stx FDC_CTRL
-	lda #$00              ; Restore -> piste 0 (cale c_track)
-	sta FDC_CMD
-	jsr rts_wait_ready
-	lda rts_track         ; Seek vers la piste cible
-	sta FDC_DATA          ; data = piste cible
-	lda #$10
-	sta FDC_CMD           ; Seek
-	jsr rts_wait_ready
-	lda rts_sector
-	clc
-	adc #1                ; readblock produit un secteur 0-based ; les ID
-	sta FDC_SECTOR        ; physiques Sedoric/MFM sont 1-based (1..17) -> +1
+	jsr rts_seek          ; setup commun : face + restore + seek + secteur
 	lda #$80
 	sta FDC_CMD           ; Read Sector
 	ldy #0
@@ -74,6 +53,55 @@ rts_loop
 	iny
 	bne rts_loop
 rts_done
+	rts
+
+; --- write_track_sector ------------------------------------------------------
+; Même contrat que read_track_sector (A=piste, X=secteur, source=readblocks_mempos).
+; Écrit 256 octets sur le secteur (commande WD1793 $A0 Write Sector). Pour save/restore.
+write_track_sector
+	sta rts_track
+	stx rts_sector
+	jsr rts_seek
+	lda #$a0
+	sta FDC_CMD           ; Write Sector
+	ldy #0
+wts_loop
+	lda FDC_STATUS
+	and #$01              ; BUSY ?
+	beq wts_done
+	lda FDC_STATUS
+	and #$02              ; DRQ ?
+	beq wts_loop
+	lda (readblocks_mempos),y
+	sta FDC_DATA
+	iny
+	bne wts_loop
+wts_done
+	rts
+
+; setup commun read/write : face (piste >= TRACKS_PER_SIDE -> face 1), restore, seek,
+; secteur physique (readblock 0-based -> ID Sedoric/MFM 1-based, +1).
+rts_seek
+	ldx #$80              ; FDC_CTRL base : drive 0, side 0, EPROM off, IRQ off
+	lda rts_track
+	cmp #TRACKS_PER_SIDE
+	bcc +
+	sbc #TRACKS_PER_SIDE  ; (carry set par cmp) piste physique face 1
+	sta rts_track
+	ldx #$90              ; face 1 : side (b4) = 1
++	stx FDC_CTRL
+	lda #$00              ; Restore -> piste 0
+	sta FDC_CMD
+	jsr rts_wait_ready
+	lda rts_track         ; Seek vers la piste cible
+	sta FDC_DATA
+	lda #$10
+	sta FDC_CMD           ; Seek
+	jsr rts_wait_ready
+	lda rts_sector
+	clc
+	adc #1
+	sta FDC_SECTOR
 	rts
 
 ; attend la fin d'une commande Type I (BUSY relache), avec tempo initiale
