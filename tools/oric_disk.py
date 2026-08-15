@@ -20,6 +20,16 @@ Références :
 from dataclasses import dataclass, field
 
 
+# Nb de secteurs réservés/écrits pour la piste de config. DOIT rester synchronisé
+# avec : (1) le nb de read_track_sector du bloc TARGET_ORIC de deletable_init
+# (ozmoo.asm), (2) build_game_disk (via od.CONFIG_SECTORS).
+# 4 secteurs (1024 o) : les gros jeux V5 (Aventyr 133K = 519 o) débordent 2 secteurs.
+# DOIT être PAIR : l'octet disk_info d'une piste encode `réservés/2` en bits 6-7
+# (place_story), donc réservés ∈ {2,4,6}. 2 trop petit, 4 = choix. config_load_address
+# ($3200) + 1024 = $3600 (= stack_start, adjacent sans chevauchement).
+CONFIG_SECTORS = 4
+
+
 @dataclass
 class Geometry:
     """Géométrie d'un disque + réservations. Pistes 1-based (piste 0 non utilisée
@@ -43,7 +53,7 @@ class Geometry:
 SEDORIC_SIDES, SEDORIC_TRACKS_PER_SIDE, SEDORIC_SECTORS = 2, 42, 17
 
 
-def default_microdisc(tracks=41, sectors=17, config_track=1, config_sectors=2,
+def default_microdisc(tracks=41, sectors=17, config_track=1, config_sectors=CONFIG_SECTORS,
                       interleave=0):
     """Géométrie Microdisc/Sedoric simplifiée mono-face : pistes 1..tracks,
     `sectors` secteurs/piste, `config_sectors` secteurs réservés sur la piste
@@ -347,7 +357,7 @@ def build_vmem_data(dynmem_blocks, total_blocks, preloaded=0, highbyte_mask=0x00
 
 
 def build_config_track_bytes(game_id, disk_info_full, vmem_data=None):
-    """Sérialise la piste de config (max 512 o = 2 secteurs). `game_id` = 4 octets,
+    """Sérialise la piste de config (max CONFIG_SECTORS*256 o). `game_id` = 4 octets,
     `disk_info_full` = sortie de build_full_disk_info, `vmem_data` = liste (défaut :
     en-tête minimal, 0 bloc préchargé). L'octet +4 = 1 + len(disk_info_full)."""
     if len(game_id) != 4:
@@ -357,8 +367,10 @@ def build_config_track_bytes(game_id, disk_info_full, vmem_data=None):
         vmem_data = [0, 4, 0, 0]
     size_byte = 1 + len(disk_info_full)
     data = list(game_id) + [size_byte] + list(disk_info_full) + list(vmem_data)
-    if len(data) > 512:
-        raise ValueError(f"config trop grande : {len(data)} > 512 octets (2 secteurs)")
+    cap = CONFIG_SECTORS * 256
+    if len(data) > cap:
+        raise ValueError(f"config trop grande : {len(data)} > {cap} octets "
+                         f"({CONFIG_SECTORS} secteurs)")
     return data
 
 
@@ -366,10 +378,10 @@ def build_bootable_disk(story_bytes, geo: Geometry, game_id, config_track=1,
                         device=0, vmem_data=None):
     """Construit une image BRUTE side-major complète : blocs story placés + piste de
     config écrite dans les secteurs réservés de `config_track`. Renvoie
-    (raw, disk_info_full, placement, config_bytes). La géométrie DOIT réserver ≥ 2
-    secteurs sur `config_track` (default_microdisc(..., config_sectors=2))."""
-    if geo.reserved_sectors[config_track] < 2:
-        raise ValueError(f"config_track {config_track} doit réserver ≥ 2 secteurs")
+    (raw, disk_info_full, placement, config_bytes). La géométrie DOIT réserver
+    ≥ CONFIG_SECTORS secteurs sur `config_track`."""
+    if geo.reserved_sectors[config_track] < CONFIG_SECTORS:
+        raise ValueError(f"config_track {config_track} doit réserver ≥ {CONFIG_SECTORS} secteurs")
     raw, info_entry, p = build_disk(story_bytes, geo, device)
     raw = bytearray(raw)
     disk_info_full = build_full_disk_info(p.config_track_map, device=device,
@@ -379,10 +391,12 @@ def build_bootable_disk(story_bytes, geo: Geometry, game_id, config_track=1,
         _, dynmem_blocks, total_blocks = story_vmem_layout(story_bytes)
         vmem_data = build_vmem_data(dynmem_blocks, total_blocks)
     config_bytes = build_config_track_bytes(game_id, disk_info_full, vmem_data)
-    # écrit la config sur les 2 premiers secteurs (0-based) de config_track
-    padded = bytes(config_bytes) + bytes(512 - len(config_bytes))
-    raw[raw_offset(0, config_track, 0):raw_offset(0, config_track, 0) + 256] = padded[:256]
-    raw[raw_offset(0, config_track, 1):raw_offset(0, config_track, 1) + 256] = padded[256:512]
+    # écrit la config sur les CONFIG_SECTORS premiers secteurs (0-based) de config_track
+    cap = CONFIG_SECTORS * 256
+    padded = bytes(config_bytes) + bytes(cap - len(config_bytes))
+    for si in range(CONFIG_SECTORS):
+        o = raw_offset(0, config_track, si)
+        raw[o:o + 256] = padded[si * 256:(si + 1) * 256]
     return bytes(raw), disk_info_full, p, config_bytes
 
 
@@ -413,7 +427,7 @@ def _roundtrip_test():
     for interleave in (0, 1, 3, 5):
         for nsec in (1, 2, 16, 17, 18, 34, 35, 100, 300):
             geo = default_microdisc(tracks=41, sectors=17, config_track=1,
-                                    config_sectors=2, interleave=interleave)
+                                    config_sectors=CONFIG_SECTORS, interleave=interleave)
             p = place_story(nsec, geo)
             entry = build_disk_info_entry(p.config_track_map)
             for block, (t, s) in enumerate(p.blocks):
@@ -458,7 +472,7 @@ def _full_disk_info_test():
     for interleave in (0, 1, 3, 5):
         for nsec in (1, 2, 16, 17, 18, 34, 100, 300, 600):
             geo = default_microdisc(tracks=41, sectors=17, config_track=1,
-                                    config_sectors=2, interleave=interleave)
+                                    config_sectors=CONFIG_SECTORS, interleave=interleave)
             p = place_story(nsec, geo)
             di = build_full_disk_info(p.config_track_map, interleave=interleave)
             for block, (t, s) in enumerate(p.blocks):
@@ -479,7 +493,7 @@ def _bootable_disk_test():
     checks = 0
     for interleave in (0, 1, 3):
         geo = default_microdisc(tracks=41, sectors=17, config_track=1,
-                                config_sectors=2, interleave=interleave)
+                                config_sectors=CONFIG_SECTORS, interleave=interleave)
         nblocks = 400
         story = bytes(((n + i) & 0xff) for n in range(nblocks) for i in range(256))
         game_id = [0xDE, 0xAD, 0xBE, 0xEF]
@@ -563,7 +577,7 @@ def _cli(argv):
     interleave = int(argv[3]) if len(argv) > 3 else 0
     game_id = bytes.fromhex(argv[4]) if len(argv) > 4 else b"\x00OZM"
     geo = default_microdisc(tracks=41, sectors=17, config_track=1,
-                            config_sectors=2, interleave=interleave)
+                            config_sectors=CONFIG_SECTORS, interleave=interleave)
     raw, di_full, p, cfg = build_bootable_disk(story, geo, list(game_id), config_track=1)
     open(argv[2], "wb").write(raw)
     ns, db, tb = story_vmem_layout(story)

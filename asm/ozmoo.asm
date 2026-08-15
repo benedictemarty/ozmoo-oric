@@ -2269,6 +2269,25 @@ deletable_init
 	ldx #1
 	ldy boot_device
 	jsr read_track_sector
+!ifdef TARGET_ORIC {
+	; Oric : secteurs 2 et 3 de config (4 secteurs = 1024 o au total). La config
+	; (game_id + disk_info + vmem_data) deborde 2 secteurs pour les gros jeux V5
+	; (Aventyr 133K = 519 o > 512). oric_disk.py ecrit CONFIG_SECTORS=4 secteurs sur
+	; CONF_TRK et build_game_disk en reserve 4 (doit etre pair : l'octet disk_info
+	; encode reserves/2). config_load_address ($3200) + 1024 = $3600, adjacent a
+	; stack_start sans chevauchement. Inoffensif pour les petits jeux (secteurs de
+	; padding relus dans une zone vmem_data inutilisee, cap a vmap_max_entries).
+	inc readblocks_mempos + 1
+	lda #CONF_TRK
+	ldx #2
+	ldy boot_device
+	jsr read_track_sector
+	inc readblocks_mempos + 1
+	lda #CONF_TRK
+	ldx #3
+	ldy boot_device
+	jsr read_track_sector
+}
 
 ; Copy game id
 	ldx #3

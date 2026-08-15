@@ -154,7 +154,8 @@ def build(master, interp_bin, story_path, out_dsk, name="OZMOO",
     # Story sur les pistes HAUTES libres : pistes basses (≈1-14) réservées au DOS,
     # piste système 20 + pistes du fichier interp réservées (sautées). `conf_trk` = 1re
     # piste story/config (doit == -DCONF_TRK du build).
-    geo = _geometry(tracks, sectors, first_track=conf_trk, skip_tracks=skip)
+    geo = _geometry(tracks, sectors, first_track=conf_trk,
+                    config_sectors=od.CONFIG_SECTORS, skip_tracks=skip)
     p = od.place_story(nblocks, geo)
     if len(p.blocks) < nblocks:
         sys.exit(f"story trop grande : {len(p.blocks)}/{nblocks} blocs placés")
@@ -181,9 +182,10 @@ def build(master, interp_bin, story_path, out_dsk, name="OZMOO",
                  "(placement plus compact) ou augmenter le buffer disk_info.")
     vmem_data = od.build_vmem_data(dynmem_blocks, total_blocks)
     cfg = od.build_config_track_bytes(list(game_id), di_full, vmem_data)
-    if len(cfg) > 512:
-        sys.exit(f"piste config trop grande ({len(cfg)} o > 512) — game_id+disk_info+vmem_data "
-                 "dépasse 2 secteurs.")
+    cfg_cap = od.CONFIG_SECTORS * SECSZ
+    if len(cfg) > cfg_cap:
+        sys.exit(f"piste config trop grande ({len(cfg)} o > {cfg_cap}) — "
+                 f"game_id+disk_info+vmem_data dépasse {od.CONFIG_SECTORS} secteurs.")
 
     # écrit les blocs story STATIQUES (dynmem exclue)
     for n, (t, s) in enumerate(p.blocks):
@@ -191,10 +193,11 @@ def build(master, interp_bin, story_path, out_dsk, name="OZMOO",
         blk = blk + bytes(SECSZ - len(blk))
         o = off(0, t, s)
         raw[o:o + SECSZ] = blk
-    # écrit la piste config (2 secteurs 0-based) sur conf_trk
-    padded = bytes(cfg) + bytes(512 - len(cfg))
-    raw[off(0, conf_trk, 0):off(0, conf_trk, 0) + SECSZ] = padded[:SECSZ]
-    raw[off(0, conf_trk, 1):off(0, conf_trk, 1) + SECSZ] = padded[SECSZ:512]
+    # écrit la piste config (od.CONFIG_SECTORS secteurs 0-based) sur conf_trk
+    padded = bytes(cfg) + bytes(cfg_cap - len(cfg))
+    for si in range(od.CONFIG_SECTORS):
+        o = off(0, conf_trk, si)
+        raw[o:o + SECSZ] = padded[si * SECSZ:(si + 1) * SECSZ]
     print(f"story {len(story)}o -> {nblocks} blocs (pistes {conf_trk}-{last_story_track}), "
           f"config piste {conf_trk} ({len(cfg)}o), dynmem={dynmem_blocks} blocs, "
           f"statiques {dynmem_blocks}..{total_blocks - 1}")

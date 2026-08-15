@@ -3,6 +3,34 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.36.6] - 2026-08-15 — Piste de config à 4 secteurs → gros jeux V5 : Aventyr (133K) jouable
+### Problème
+La piste de config VMEM était limitée à **2 secteurs (512 o)**. Pour un gros V5, la
+config `game_id + disk_info + vmem_data` (liste des blocs statiques suggérés) déborde :
+**Aventyr.z5 (133K) = 519 o > 512** → `build_game_disk` échouait (« config trop grande »).
+C'était le **vrai plafond sur la taille des jeux (~120K)**, atteint AVANT tout souci
+multi-faces.
+### Fix — config sur 4 secteurs (1024 o)
+- `tools/oric_disk.py` : constante **`CONFIG_SECTORS = 4`** (centralisée). Le cap passe
+  de 512 à `CONFIG_SECTORS*256` ; `build_config_track_bytes`/`build_bootable_disk`/
+  `default_microdisc` l'utilisent. **4 et non 3** car l'octet `disk_info` d'une piste
+  encode `réservés/2` en bits 6-7 (`place_story`) → nb réservés **pair** obligatoire.
+- `tools/build_game_disk.py` : réserve `CONFIG_SECTORS` secteurs sur `CONF_TRK` et écrit
+  la config sur ces 4 secteurs.
+- `asm/ozmoo.asm` (`deletable_init`, bloc `!ifdef TARGET_ORIC`) : lit désormais **4
+  secteurs** de config (`ldx #0..#3`) vers `config_load_address` (`$3200`). `$3200+1024
+  = $3600` = `stack_start`, adjacent **sans chevauchement**. Les petits jeux relisent 2
+  secteurs de padding inoffensifs (le lecteur ASM cape à `vmap_max_entries`, ne lit
+  jamais au-delà de ~150 o de config).
+### Vérifié
+- **Aventyr.z5 (133K, suédois) : se construit ET boote en banking** — intro « Vid slutet
+  av en väg… », **0 `[Not supported]`**, `$C300` propre (story pistes 15-50, face 0).
+- **Non-régression** : czech.z3 VMEM **349/0**, czech.z5 VMEM **406/0**, advent banking OK.
+- **Nouveau test** `test-oric/bank_biggame_test.sh` (Aventyr) → **PASS**.
+### Reste
+Multi-faces (face 1) pour jeux > 1 face (Aventyr tient sur face 0). Décision banking
+par défaut. Extension banking 16 Ko.
+
 ## [0.36.5] - 2026-08-15 — ★ BUG BANKING V5 CORRIGÉ : l'écriture RAM-couleur (COLOURFUL_LOWER_WIN) corrompait un bloc VMEM
 ### Cause racine (enfin isolée) — écriture couleur parasite sur Oric
 Un **watchpoint écriture** ajouté à Phosphoric (`ORIC_WATCH=lo:hi:fichier`, cf. son
