@@ -335,8 +335,15 @@ read_track_sector
 	sta zp_mempos
 	lda readblocks_mempos + 1
 	sta zp_mempos + 1
-	lda #$80
-	sta $0314              ; drive 0, side 0
+	; Face : bit 7 de .track = face 1 (convention loader Sedoric). Piste physique
+	; = .track & $7f ; side b4 de $0314 = 1 pour la face 1.
+	ldx #$80               ; $0314 base : drive 0, side 0, EPROM off, IRQ off
+	lda .track
+	bpl +
+	ldx #$90               ; face 1 : side (b4) = 1
+	and #$7f
+	sta .track             ; piste physique = .track & $7f
++	stx $0314
 	lda #$00
 	sta $0310              ; Restore -> piste 0
 	jsr .oric_fdc_wait

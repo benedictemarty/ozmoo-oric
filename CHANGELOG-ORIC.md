@@ -3,6 +3,27 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.36.7] - 2026-08-15 — `read_track_sector` : support FACE 1 (bit 7 de la piste) — primitive validée
+### Ajout — accès à la 2ᵉ face du disque
+`read_track_sector` forçait la **face 0** (`$0314 = $80`, side b4=0). Désormais, si la
+**piste a le bit 7 à 1** (convention loader Sedoric), la routine sélectionne la **face 1**
+(`$0314` side b4=1, soit `$90`) et utilise la **piste physique = piste & $7f**. Appliqué
+aux DEUX copies maintenues en phase : `asm/disk-oric.asm` (standalone) et le bloc inline
+`!ifdef TARGET_ORIC` de `asm/disk.asm` (moteur).
+### Vérifié
+- **Nouveau test matériel `test-oric/rts_side1.asm`+`.sh`** : disque à marqueur de face
+  (`byte0 = '0'+face`), lecture piste 3 des 2 faces → affiche **`01`** (face 0 = `'0'`,
+  face 1 = `'1'`) → **PASS**. Une face non sélectionnée donnerait `00`.
+- **Non-régression face 0** : `rts_sectorbase.sh` (**`123`**), czech.z3 VMEM **349/0**
+  (chemin intégré `disk.asm`).
+### Portée (honnêteté)
+Ceci ajoute et **valide la primitive** d'accès face 1. Le **placement** d'une story sur 2
+faces (`oric_disk.py`/`build_game_disk.py` : déborder les blocs sur la face 1 en encodant
+ces pistes avec le bit 7) **n'est PAS encore fait** — et **aucun jeu disponible ne le
+requiert** : Aventyr (133K, le plus gros) tient sur la face 0 (pistes 15-50), et même un V5
+proche du max (~246K) tiendrait. À implémenter+valider quand un jeu > 1 face se présentera
+(la primitive matérielle est prête).
+
 ## [0.36.6] - 2026-08-15 — Piste de config à 4 secteurs → gros jeux V5 : Aventyr (133K) jouable
 ### Problème
 La piste de config VMEM était limitée à **2 secteurs (512 o)**. Pour un gros V5, la

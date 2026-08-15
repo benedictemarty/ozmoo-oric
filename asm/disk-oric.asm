@@ -31,8 +31,15 @@ FDC_CTRL   = $0314
 read_track_sector
 	sta rts_track
 	stx rts_sector
-	lda #$80              ; drive 0, side 0, EPROM overlay off, IRQ off
-	sta FDC_CTRL
+	; Face : bit 7 de la piste = face 1 (convention loader Sedoric). Piste physique
+	; = piste & $7f ; side b4 de FDC_CTRL = 1 pour la face 1.
+	ldx #$80             ; FDC_CTRL base : drive 0, side 0, EPROM off, IRQ off
+	lda rts_track
+	bpl +
+	ldx #$90             ; face 1 : side (b4) = 1
+	and #$7f
+	sta rts_track        ; piste physique = piste & $7f
++	stx FDC_CTRL
 	lda #$00              ; Restore -> piste 0 (cale c_track)
 	sta FDC_CMD
 	jsr rts_wait_ready
