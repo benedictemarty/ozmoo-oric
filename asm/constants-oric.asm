@@ -12,6 +12,14 @@
 ; Voir docs/PORTING_ORIC.md pour l'architecture et le backlog.
 ; =============================================================================
 
+; Pistes par face du disque (géométrie du master Sedoric utilisé par build_game_disk :
+; SEDO40u = 2 faces x 80 pistes). read_track_sector s'en sert comme SEUIL : une piste
+; linéaire (readblock incrémente .track de 1..N, JAMAIS de bit 7) >= TRACKS_PER_SIDE est
+; sur la FACE 1 (side b4=1, piste physique = .track - TRACKS_PER_SIDE). Overridable -D.
+!ifndef TRACKS_PER_SIDE {
+TRACKS_PER_SIDE = 80
+}
+
 ; --- MACHINE : ORIC-1 / Atmos ------------------------------------------------
 ; Ecran TEXT 40x28 en $BB80 (attributs "serie" inseres dans le flux, PAS de
 ; colour-map separee comme le VIC/TED). D'ou NO_COLOUR_MAP (nouveau drapeau de

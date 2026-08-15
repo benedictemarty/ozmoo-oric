@@ -25,20 +25,27 @@ FDC_SECTOR = $0312
 FDC_DATA   = $0313
 FDC_CTRL   = $0314
 
+; Pistes/face (seuil face 1). Défini par constants-oric.asm dans le build moteur ;
+; fallback ici pour l'usage standalone (test-oric/*). Cf. read_track_sector.
+!ifndef TRACKS_PER_SIDE {
+TRACKS_PER_SIDE = 80
+}
+
 ; --- read_track_sector -------------------------------------------------------
 ; Contrat Ozmoo : A = piste, X = secteur, Y = device (ignore : mono-lecteur),
 ; mot en readblocks_mempos = adresse de destination. Lit 256 octets.
 read_track_sector
 	sta rts_track
 	stx rts_sector
-	; Face : bit 7 de la piste = face 1 (convention loader Sedoric). Piste physique
-	; = piste & $7f ; side b4 de FDC_CTRL = 1 pour la face 1.
+	; Face : readblock fournit une piste LINÉAIRE (1..N, jamais de bit 7). Une piste
+	; >= TRACKS_PER_SIDE est sur la FACE 1 -> side b4=1, piste physique = piste - TPS.
 	ldx #$80             ; FDC_CTRL base : drive 0, side 0, EPROM off, IRQ off
 	lda rts_track
-	bpl +
+	cmp #TRACKS_PER_SIDE
+	bcc +
+	sbc #TRACKS_PER_SIDE ; (carry déjà set par cmp) piste physique face 1
+	sta rts_track
 	ldx #$90             ; face 1 : side (b4) = 1
-	and #$7f
-	sta rts_track        ; piste physique = piste & $7f
 +	stx FDC_CTRL
 	lda #$00              ; Restore -> piste 0 (cale c_track)
 	sta FDC_CMD

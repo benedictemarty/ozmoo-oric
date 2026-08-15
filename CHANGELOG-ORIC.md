@@ -3,6 +3,30 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.36.9] - 2026-08-15 — Correctif face 1 : SEUIL (piste linéaire) au lieu de bit 7 — le vrai contrat de `readblock`
+### Pourquoi (correction de 0.36.7)
+0.36.7 avait implémenté la face 1 via **bit 7 de la piste** (« convention loader Sedoric »).
+**C'était le mauvais contrat pour le moteur.** Vérification de `readblock` (`disk.asm`
+L199-219) : le n° de piste passé à `read_track_sector` est **LINÉAIRE** — `.track` part de
+`1` et est incrémenté (`inc .track`), **jamais** de bit 7. Pour un master 2 faces × 80
+pistes (SEDO40u), une story qui déborde la face 0 produirait des pistes **80-159**, pas des
+pistes bit-7 (128+). Le bit 7 n'aurait jamais été positionné par `readblock`.
+### Fix
+- **Sélection de face par SEUIL** : `read_track_sector` compare `.track` à **`TRACKS_PER_SIDE`
+  (= 80, `constants-oric.asm`, overridable `-D`)** ; si `.track >= TRACKS_PER_SIDE` → face 1
+  (`$0314` side b4=1), piste physique = `.track - TRACKS_PER_SIDE`. Appliqué aux 2 copies en
+  phase (`disk-oric.asm` standalone + inline `disk.asm`). Fallback `TRACKS_PER_SIDE=80` dans
+  `disk-oric.asm` pour l'usage standalone.
+### Vérifié
+- **`test-oric/rts_side1`** revu (disque **80 pistes/face**, lecture piste 3 = face 0 + piste
+  **83** = face 1 physique 3) → **`01`** → PASS (sélection de face par seuil correcte).
+- **Non-régression face 0** : `rts_sectorbase` `123`, czech.z3 VMEM **349/0** (chemin intégré).
+### Portée (inchangée vs 0.36.7)
+Ceci corrige la **primitive** pour qu'elle matche le contrat moteur. Le **placement** story
+2-faces (`oric_disk.py`/`build_game_disk.py` : étendre l'espace de pistes linéaire à
+0..2×80 et déborder sur la face 1) reste À FAIRE et **aucun jeu dispo ne le requiert**
+(Aventyr 133K tient sur la face 0). À implémenter+valider quand un jeu > 1 face apparaîtra.
+
 ## [0.36.8] - 2026-08-15 — Banking étendu à 16 Ko (`$C000-$FDFF`) — +33% de blocs VMEM résidents
 ### Extension (opt-in `-DORIC_BANKING`)
 Le banking exploitait `$C000-$DDFF` (8 Ko). `$E000-$FFFF` étant aussi de la RAM sous
