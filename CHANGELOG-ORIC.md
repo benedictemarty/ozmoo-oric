@@ -18,12 +18,15 @@ Le banking exploitait `$C000-$DDFF` (8 Ko). `$E000-$FFFF` étant aussi de la RAM
   `$E000-$FDFF` peuplé de données story (banking 16 Ko **engagé**) ; **0 `[Not supported]`**,
   advent jouable.
 - **Aventyr (133K) banking 16 Ko** : `bank_biggame_test.sh` PASS.
+- **HHGG (V3, 111K) banking 16 Ko** : `vmap_max_entries` **59 → 74**, `$E000+` peuplé,
+  intro correcte, 0 `[Not supported]` (valide le chemin V3, distinct de V5).
 - **Non-régression** : czech.z5 VMEM **406/0** (build défaut intact, changements tous
   sous `!ifdef ORIC_BANKING`).
 ### Reste
-Banking **toujours OFF par défaut** (décision de bascule ouverte). Extension au-delà de
-16 Ko impossible (tout `$C000-$FFFF` utilisé). Placement story 2-faces (primitive prête,
-v0.36.7).
+Banking **reste OPT-IN, OFF par défaut** (décision utilisateur : garder le build défaut
+comme comportement le plus éprouvé ; banking = optimisation activable `-DORIC_BANKING`).
+Extension au-delà de 16 Ko impossible (tout `$C000-$FFFF` utilisé). Placement story
+2-faces (primitive prête, v0.36.7 ; aucun jeu dispo ne le requiert).
 
 ## [0.36.7] - 2026-08-15 — `read_track_sector` : support FACE 1 (bit 7 de la piste) — primitive validée
 ### Ajout — accès à la 2ᵉ face du disque
