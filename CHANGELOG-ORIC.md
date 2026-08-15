@@ -3,6 +3,38 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.37.0] - 2026-08-16 — ★★★ STORY 2-FACES + V8 : Jigsaw (298K, V8) jouable sur Oric ★★★
+### Jalon
+Premier jeu **V8** ET premier jeu **2-faces** sur le portage : **Jigsaw** (Graham Nelson,
+1995, V8, 298 Ko) boote depuis la disquette Sedoric, affiche titre + ouverture et **répond
+aux commandes** — sa story déborde la face 0 (**pistes physiques face 1 : 0-9**) et le moteur
+**lit les blocs de la face 1** à la demande.
+### Placement 2-faces (`tools/`)
+- `build_game_disk.py` : espace de pistes **LINÉAIRE sur 2 faces** (`total_tracks=2×tracks`).
+  Piste linéaire `t` → `(face = t // tracks, piste physique = t % tracks)`. Face 1 (vide sur
+  un master Sedoric mono-face) entièrement libre. Les blocs qui débordent la face 0 sont
+  placés sur la face 1 ; le `disk_info` reste un tableau de pistes linéaire que `readblock`
+  parcourt en incrémentant `.track` — quand `.track >= TRACKS_PER_SIDE(80)`, `read_track_sector`
+  (v0.36.9) bascule sur la face 1. Écriture blocs : `off(t//tracks, t%tracks, s)`.
+- `oric_disk.py` : **`MAX_SUGGESTED_BLOCKS = 128`** — `build_vmem_data` cape la liste des
+  blocs suggérés (l'interp n'en garde jamais plus que `vmap_max_size`=128 ; le lecteur ASM
+  lit `nb_suggérés` dans 1 octet et cape à `vmap_max_entries`). Sémantiquement identique (le
+  lecteur prend les PREMIERS) mais garde la config petite : sans ça, un V8 (595 blocs) génère
+  1198 o de config > 4 secteurs. Avec cap : Jigsaw config = 376 o.
+### PREUVE (on-hardware) de lecture face 1
+Dump RAM en cours de jeu + décodage vmap : les **blocs VMEM 500 et 590** (face 1) sont
+**résidents ET identiques à la story** (`RAM == story`). Le moteur a donc fauté ces blocs
+depuis la face 1 via `read_track_sector` (seuil) et lu les bonnes données.
+### Vérifié
+- **Nouveau test `test-oric/bank_2face_test.sh`** (Jigsaw) : build 2-faces + boot + explore +
+  décode vmap → assert un bloc face-1 résident == story → **PASS** (bloc 590).
+- **Non-régression** : czech.z5 VMEM **406/0**, advent banking, Aventyr (133K) banking, tests
+  internes `oric_disk.py` — tous PASS (le cap et la géométrie 2-faces sont transparents pour
+  les jeux tenant sur la face 0).
+### Notes
+Jeu non versionné (commercial-libre IF Archive) attendu en `/home/bmarty/42/jigsaw.z8` (arg
+optionnel). `TRACKS_PER_SIDE=80` doit == pistes/face du master (`build_game_disk` le lit).
+
 ## [0.36.9] - 2026-08-15 — Correctif face 1 : SEUIL (piste linéaire) au lieu de bit 7 — le vrai contrat de `readblock`
 ### Pourquoi (correction de 0.36.7)
 0.36.7 avait implémenté la face 1 via **bit 7 de la piste** (« convention loader Sedoric »).

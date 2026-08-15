@@ -88,22 +88,28 @@ def _catalog_used(raw, tracks, sectors, side=0):
     return used
 
 
-def _geometry(tracks, sectors, first_track, config_sectors=2, skip_tracks=()):
+def _geometry(tracks, sectors, first_track, config_sectors=2, skip_tracks=(), total_tracks=None):
     """Géométrie où les pistes 1..first_track-1 sont RÉSERVÉES (le DOS Sedoric occupe
     les pistes basses hors catalogue — écrire dessus casse le LOAD), la story commence
     à `first_track` avec `config_sectors` réservés pour la piste de config.
     `skip_tracks` : pistes supplémentaires réservées EN MILIEU de zone story (piste
     système Sedoric 20 + pistes du fichier interpréteur AUTO) — place_story les saute
     et readblock aussi (octet disk_info = 0 => .next_track). Permet un GROS jeu dont la
-    story s'étale au-delà de la piste système/interp (ex. HHGG : 15-19 + 27..)."""
-    tl = [0] + [sectors] * (tracks - 1)
-    rs = [0] * tracks
+    story s'étale au-delà de la piste système/interp (ex. HHGG : 15-19 + 27..).
+    `total_tracks` : nb TOTAL de pistes de l'espace LINÉAIRE (défaut = `tracks`). Pour la
+    FACE 1 : passer 2*tracks → les pistes linéaires `tracks..2*tracks-1` (face 1, vide sur
+    un master Sedoric mono-face) sont LIBRES (rs=0). read_track_sector mappe piste
+    linéaire >= TRACKS_PER_SIDE(=tracks) sur la face 1 (piste physique = lin - tracks)."""
+    n = total_tracks if total_tracks else tracks
+    tl = [0] + [sectors] * (n - 1)
+    rs = [0] * n
     for t in range(1, first_track):
         rs[t] = sectors                        # piste pleine = sautée par place_story
     rs[first_track] = config_sectors           # piste config = story - 2 secteurs
     for t in skip_tracks:                       # système + interp = pleines (sautées)
-        if 0 <= t < tracks:
+        if 0 <= t < n:
             rs[t] = sectors
+    # Pistes de la face 1 (>= tracks) laissées LIBRES (rs=0 déjà) : face vide.
     return od.Geometry(track_length=tl, reserved_sectors=rs, interleave=0)
 
 
@@ -154,21 +160,26 @@ def build(master, interp_bin, story_path, out_dsk, name="OZMOO",
     # Story sur les pistes HAUTES libres : pistes basses (≈1-14) réservées au DOS,
     # piste système 20 + pistes du fichier interp réservées (sautées). `conf_trk` = 1re
     # piste story/config (doit == -DCONF_TRK du build).
+    # Espace de pistes LINÉAIRE sur 2 faces : 0..2*tracks-1 (face 0 puis face 1). La
+    # face 1 (>= tracks) est vide → libre. read_track_sector (interp, TRACKS_PER_SIDE=
+    # tracks) mappe piste linéaire >= tracks sur la face 1.
     geo = _geometry(tracks, sectors, first_track=conf_trk,
-                    config_sectors=od.CONFIG_SECTORS, skip_tracks=skip)
+                    config_sectors=od.CONFIG_SECTORS, skip_tracks=skip, total_tracks=2 * tracks)
     p = od.place_story(nblocks, geo)
     if len(p.blocks) < nblocks:
-        sys.exit(f"story trop grande : {len(p.blocks)}/{nblocks} blocs placés")
+        sys.exit(f"story trop grande : {len(p.blocks)}/{nblocks} blocs placés (2 faces pleines)")
     story_tracks = sorted(set(t for (t, s) in p.blocks) | {conf_trk})
     last_story_track = max(story_tracks)
+    side1_tracks = [t for t in story_tracks if t >= tracks]
     print(f"interp AUTO ~{interp_sectors} sect -> pistes {INTERP_START_TRACK}-{interp_last_track} "
           f"(réservées) ; piste système {DIR_TRACK} sautée")
-    if last_story_track >= tracks:
-        sys.exit(f"story déborde la face 0 (piste {last_story_track} >= {tracks} pistes) "
-                 "— nécessite la face 1 (read_track_sector à étendre pour side 1)")
-    # sécurité : les pistes story/config doivent être LIBRES (sinon on écraserait
-    # le DOS ou un fichier — l'effacement des overlays DOS casse le LOAD).
-    collide = [t for t in story_tracks if any((t, s) in used for s in range(1, sectors + 1))]
+    if side1_tracks:
+        print(f"story DÉBORDE sur la FACE 1 : pistes linéaires {side1_tracks[0]}-{side1_tracks[-1]} "
+              f"(= face 1 physiques {side1_tracks[0]-tracks}-{side1_tracks[-1]-tracks})")
+    # sécurité : les pistes story/config de la FACE 0 doivent être LIBRES (le catalogue
+    # DOS est en face 0 ; la face 1 est vide). L'effacement des overlays DOS casse le LOAD.
+    collide = [t for t in story_tracks if t < tracks
+               and any((t, s) in used for s in range(1, sectors + 1))]
     if collide:
         sys.exit(f"pistes story/config {collide} occupées par le DOS/fichiers — "
                  "choisir un master avec pistes basses libres ou étendre le placement")
@@ -187,11 +198,12 @@ def build(master, interp_bin, story_path, out_dsk, name="OZMOO",
         sys.exit(f"piste config trop grande ({len(cfg)} o > {cfg_cap}) — "
                  f"game_id+disk_info+vmem_data dépasse {od.CONFIG_SECTORS} secteurs.")
 
-    # écrit les blocs story STATIQUES (dynmem exclue)
+    # écrit les blocs story STATIQUES (dynmem exclue). Piste LINÉAIRE t -> (face, piste
+    # physique) = (t // tracks, t % tracks) : face 0 pour t < tracks, face 1 au-delà.
     for n, (t, s) in enumerate(p.blocks):
         blk = story_static[n * SECSZ:(n + 1) * SECSZ]
         blk = blk + bytes(SECSZ - len(blk))
-        o = off(0, t, s)
+        o = off(t // tracks, t % tracks, s)
         raw[o:o + SECSZ] = blk
     # écrit la piste config (od.CONFIG_SECTORS secteurs 0-based) sur conf_trk
     padded = bytes(cfg) + bytes(cfg_cap - len(cfg))

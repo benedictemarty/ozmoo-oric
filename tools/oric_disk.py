@@ -344,12 +344,22 @@ def story_dynmem_prefix(story_bytes):
     return story_bytes[:nonstored_pages * 256]
 
 
-def build_vmem_data(dynmem_blocks, total_blocks, preloaded=0, highbyte_mask=0x00):
-    """Construit `vmem_data` (liste, port de make.rb ~L3517) : suggère TOUS les blocs
-    statiques (dynmem_blocks..total_blocks-1) pour chargement au boot par
-    load_suggested_pages, `preloaded` déjà en RAM (0 = tout vient du disque).
+# L'interpréteur ne garde en RAM que `vmap_max_entries` blocs (<= vmap_max_size). Le
+# lecteur (ozmoo.asm ~L2872) lit nb_suggérés dans un SEUL octet puis cape à
+# vmap_max_entries : suggérer plus est du gaspillage de piste config (les entrées
+# au-delà ne sont jamais lues). On cape donc la liste à MAX_SUGGESTED_BLOCKS = plafond
+# de vmap_max_size sur Oric (banking 16 Ko : 128). Sémantiquement identique (le lecteur
+# prend les PREMIERS), mais garde la config petite pour les gros jeux (Jigsaw V8, 298K).
+MAX_SUGGESTED_BLOCKS = 128
+
+def build_vmem_data(dynmem_blocks, total_blocks, preloaded=0, highbyte_mask=0x00,
+                    max_suggested=MAX_SUGGESTED_BLOCKS):
+    """Construit `vmem_data` (liste, port de make.rb ~L3517) : suggère les blocs
+    statiques (dynmem_blocks..total_blocks-1) à charger au boot par load_suggested_pages,
+    CAPÉS à `max_suggested` (l'interp n'en garde jamais plus ; cf. MAX_SUGGESTED_BLOCKS).
+    `preloaded` déjà en RAM (0 = tout vient du disque).
     Format : [len_hi, len_lo, nb_suggérés, nb_préchargés] + octets-hauts + octets-bas."""
-    blocks = list(range(dynmem_blocks, total_blocks))
+    blocks = list(range(dynmem_blocks, total_blocks))[:max_suggested]
     total_len = 4 + 2 * len(blocks)
     highs = [(b >> 8) & highbyte_mask for b in blocks]
     lows = [b & 0xff for b in blocks]
