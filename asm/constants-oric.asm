@@ -26,8 +26,12 @@ CHARSET_STANDARD      = $b400        ; jeu de caracteres standard (RAM)
 CHARSET_ALT           = $b800        ; jeu alternatif
 
 ; Banking overlay : avec Microdisc, $C000-$FFFF bascule ROM<->RAM overlay.
-; read_track_sector ecrit $0314=$80 -> ROMDIS off => $C000-$DFFF = RAM overlay
-; (persiste sous SEI, Sedoric ne tourne plus) ; $E000-$FFFF reste EPROM/Sedoric.
+; read_track_sector ecrit $0314=$80 -> ROM BASIC off (b1=0) ET EPROM off (b7=1)
+; (persiste sous SEI, Sedoric ne tourne plus). PROUVE (test-oric/bank_e000.sh) :
+; $C000-$DFFF ET $E000-$FFFF sont TOUS DEUX de la RAM sous $0314=$80 -> 16 Ko d'overlay
+; potentiels. Le banking actuel n'exploite QUE $C000-$DFFF (8 Ko) ; etendre a $E000-$FFFF
+; (banking 16 Ko) exige de revectoriser/abandonner $FFFA-$FFFF (OK car deja SEI) et de
+; reloger le vmap sous $E000 -- a faire APRES stabilisation du banking 8 Ko.
 ; --- OPT-IN via -DORIC_BANKING (EXPERIMENTAL, OFF par defaut) ---
 ; ON : les blocs VMEM etendus ($C000-$DDFF) sont adresses DIRECTEMENT (pas de cache) ;
 ;   first_banked_memory_page=$E0 desactive le chemin cache (aucun bloc n'atteint $E0),

@@ -3,6 +3,33 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.36.3] - 2026-08-15 — Preuve empirique : `$E000-$FFFF` est de la RAM sous `$0314=$80` (banking 16 Ko possible)
+### Découverte (issue du portage Civilization Oric)
+Le projet Civilization/Oric a démontré que le **banc haut `$E000-$FFFF` (8 Ko)** du Microdisc
+devient de la RAM dès que le bit 7 (EPROM) de `$0314` = 1, à condition de désactiver les IRQ
+(vecteurs `$FFFA-$FFFF` perdus). Or **Ozmoo réunit déjà ces deux conditions** : `read_track_sector`
+écrit `$0314=$80` (bit 7 = 1) **et** le moteur tourne sous **SEI**. Le commentaire
+`constants-oric.asm` affirmait pourtant « `$E000-$FFFF` reste EPROM/Sedoric » — **affirmation
+non vérifiée et probablement fausse**.
+### Ce qui a été fait
+- **Poke-test empirique `test-oric/bank_e000.asm` + `bank_e000.sh`** : sous `$0314=$80`,
+  écrit 2 motifs distincts (`$5A` puis `$A5`) en `$E000`, `$F000`, `$FFF0` et relit
+  (RAM si les 2 tiennent). Contrôle `$C000` (RAM déjà prouvée).
+  - **Positif** (Microdisc + boot Sedoric SEDO40u, condition fidèle au runtime) :
+    `E000=R  F000=R  FFF0=R  C000=R` → **tout est RAM**. **PASS.**
+  - **Contrôle négatif** (BASIC nu, sans Microdisc, `$C000-$FFFF` = ROM BASIC) :
+    `E000=O  F000=O  FFF0=O  C000=O` → le test discrimine bien RAM/ROM.
+- **Commentaire `constants-oric.asm` corrigé** : `$E000-$FFFF` est de la RAM sous `$0314=$80`
+  (16 Ko d'overlay potentiels), l'ancienne mention « reste EPROM/Sedoric » supprimée.
+### Portée / suite
+- **Aucun changement de comportement** : `first_banked_memory_page` et les bornes VMEM sont
+  inchangés ; le banking exploite toujours seulement `$C000-$DFFF` (8 Ko). C'est une
+  **preuve + correction de doc**, pas une extension.
+- **Piste d'optimisation ouverte** : étendre le banking à **16 Ko** (`$C000-$FFFF`)
+  ≈ doublerait les blocs VMEM résidents (moins de faults disque pour les gros V5). À faire
+  **après** stabilisation du banking 8 Ko (bug d'exécution V5 encore ouvert, cf. 0.36.2) et
+  en relogeant le vmap sous `$E000`.
+
 ## [0.36.2] - 2026-08-14 — Investigation garble banking : le path unbuffered+scroll est PROPRE ; le vrai coupable est ailleurs
 ### Ce qui a été établi
 Investigation de l'artefact d'affichage « Did you know...s this edition?e fol » observé en
