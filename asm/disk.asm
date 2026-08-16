@@ -800,7 +800,15 @@ z_ins_restart
 
 z_ins_restore
 !ifndef Z4PLUS {
+!ifdef TARGET_ORIC {
+!ifdef VMEM {
+	jsr oric_restore_game
+} else {
 	jsr restore_game
+}
+} else {
+	jsr restore_game
+}
 	beq +
 	ldx #0
 	jsr split_window
@@ -810,20 +818,35 @@ z_ins_restore
 	jsr split_window
 	jmp make_branch_false
 } else {
+!ifdef TARGET_ORIC {
+!ifdef VMEM {
+	jsr oric_restore_game
+} else {
 	jsr restore_game
+}
+} else {
+	jsr restore_game
+}
 	beq +
 	inx
 +	jmp z_store_result
 }
 
 z_ins_save
-!ifndef Z4PLUS {
+!ifdef TARGET_ORIC {
+!ifdef VMEM {
+	jsr oric_save_game
+} else {
 	jsr save_game
+}
+} else {
+	jsr save_game
+}
+!ifndef Z4PLUS {
 	beq +
 	jmp make_branch_true
 +	jmp make_branch_false
 } else {
-	jsr save_game
 	jmp z_store_result
 }
 
@@ -1844,6 +1867,121 @@ do_save
 	bpl -
 	rts
 	
+!ifdef TARGET_ORIC {
+!ifdef VMEM {   ; save/restore Oric = secteurs bruts sur le disque VMEM (game_id requis)
+; ===== SAVE/RESTORE ORIC — slot unique, secteurs bruts =======================
+; Sérialise la plage CONTIGUË [stack_start - zp_bytes_to_save, story_start + dynmem_size)
+; (= ZP sauvés + pile + dynmem, via .swap_pointers_for_save) dans des secteurs bruts à
+; partir de SAVE_START_TRACK (pistes hautes de la FACE 1, toujours libres : la story max
+; va à ~140). Secteur 0 = en-tête (magic "OSAV" + game_id + nb de secteurs data). Data =
+; secteurs 1+. Pointeur de secteur = zp_mempos ($14, hors zone ZP sauvée [$75,$82)).
+!ifndef SAVE_START_TRACK { SAVE_START_TRACK = 150 }
+OSAV_HDR = $3200            ; tampon en-tête (zone config vmem, libre après boot)
+.osav_nsec !byte 0
+.osav_ct   !byte 0
+.osav_cs   !byte 0
+.osav_trk  !byte 0
+.osav_sec  !byte 0
+.osav_magic !text "OSAV"
+
+; @save Oric : renvoie A=1 (succès). @restore : A=2 (restauré) / A=0 (échec).
+oric_save_game
+	jsr .swap_pointers_for_save          ; ZP -> RAM (plage sauvée)
+	jsr .osav_calc_nsec
+	ldx #3
+-	lda .osav_magic,x : sta OSAV_HDR,x : dex : bpl -
+	ldx #3
+-	lda game_id,x : sta OSAV_HDR+4,x : dex : bpl -
+	lda .osav_nsec : sta OSAV_HDR+8
+	lda #SAVE_START_TRACK : sta .osav_ct
+	lda #0 : sta .osav_cs
+	lda #<OSAV_HDR : sta zp_mempos : lda #>OSAV_HDR : sta zp_mempos+1
+	jsr .osav_wr_next                    ; secteur 0 = en-tête
+	lda #<(stack_start - zp_bytes_to_save) : sta zp_mempos
+	lda #>(stack_start - zp_bytes_to_save) : sta zp_mempos+1
+	; compteur en mémoire (.osav_wr_next clobbere X via ldx .osav_cs)
+-	jsr .osav_wr_next
+	inc zp_mempos+1
+	dec .osav_nsec
+	bne -
+	jsr .swap_pointers_for_save          ; swap back
+	lda #1
+	rts
+
+oric_restore_game
+	lda #SAVE_START_TRACK : sta .osav_ct
+	lda #0 : sta .osav_cs
+	lda #<OSAV_HDR : sta zp_mempos : lda #>OSAV_HDR : sta zp_mempos+1
+	jsr .osav_rd_next                    ; en-tête
+	ldx #3
+-	lda OSAV_HDR,x : cmp .osav_magic,x : bne .osav_fail : dex : bpl -
+	ldx #3
+-	lda OSAV_HDR+4,x : cmp game_id,x : bne .osav_fail : dex : bpl -
+	lda OSAV_HDR+8 : sta .osav_nsec
+	beq .osav_fail
+	lda #<(stack_start - zp_bytes_to_save) : sta zp_mempos
+	lda #>(stack_start - zp_bytes_to_save) : sta zp_mempos+1
+-	jsr .osav_rd_next
+	inc zp_mempos+1
+	dec .osav_nsec
+	bne -
+	jsr .swap_pointers_for_save          ; RAM -> ZP (restaure z_pc/stack_ptr)
+	jsr get_page_at_z_pc
+	lda #2
+	rts
+.osav_fail
+	lda #0
+	rts
+
+.osav_calc_nsec
+	clc
+	lda dynmem_size   : adc #<(zp_bytes_to_save + stack_size + 255)
+	lda dynmem_size+1 : adc #>(zp_bytes_to_save + stack_size + 255)
+	sta .osav_nsec
+	rts
+
+.osav_wr_next
+	lda .osav_ct : ldx .osav_cs : jsr .osav_wr_sector
+	jmp .osav_adv
+.osav_rd_next
+	lda .osav_ct : ldx .osav_cs : jsr .osav_rd_sector
+.osav_adv
+	inc .osav_cs
+	lda .osav_cs : cmp #17 : bcc +
+	lda #0 : sta .osav_cs : inc .osav_ct
++	rts
+
+.osav_wr_sector
+	sta .osav_trk : stx .osav_sec : jsr .osav_seek
+	lda #$a0 : sta $0310 : ldy #0
+-	lda $0310 : and #$01 : beq +
+	lda $0310 : and #$02 : beq -
+	lda (zp_mempos),y : sta $0313 : iny : bne -
++	rts
+.osav_rd_sector
+	sta .osav_trk : stx .osav_sec : jsr .osav_seek
+	lda #$80 : sta $0310 : ldy #0
+-	lda $0310 : and #$01 : beq +
+	lda $0310 : and #$02 : beq -
+	lda $0313 : sta (zp_mempos),y : iny : bne -
++	rts
+.osav_seek
+	ldx #$80
+	lda .osav_trk : cmp #TRACKS_PER_SIDE : bcc +
+	sbc #TRACKS_PER_SIDE : sta .osav_trk : ldx #$90
++	stx $0314
+	lda #$00 : sta $0310 : jsr .osav_wait
+	lda .osav_trk : sta $0313 : lda #$10 : sta $0310 : jsr .osav_wait
+	lda .osav_sec : clc : adc #1 : sta $0312
+	rts
+.osav_wait
+	ldx #$40
+-	dex : bne -
+--	lda $0310 : and #$01 : bne --
+	rts
+} ; !ifdef VMEM
+} ; !ifdef TARGET_ORIC
+
 !ifdef TARGET_C128 {
 .copy_stack_and_pointers_to_bank_1
 	; Pick a cache page to use, one that the z_pc_mempointer isn't pointing to

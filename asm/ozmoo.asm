@@ -1163,6 +1163,27 @@ game_id		!byte 0,0,0,0
 	sta scrollback_enabled
 }
 
+!ifdef ORIC_SAVE_SELFTEST {
+	; Auto-test save/restore (jeu chargé, z_pc initialisé) : mémorise un octet de
+	; dynmem, save, corrompt, restore, vérifie la restauration. 'P'/'F' en $BB80 puis halt.
+	lda #'S' : sta $bb90       ; marqueur : self-test atteint
+	lda story_start + 4
+	sta $02f0                 ; valeur d'origine (page 2, hors ecran)
+	jsr oric_save_game
+	lda #'W' : sta $bb91       ; marqueur : save revenu
+	lda #$5a : sta story_start + 4   ; corrompt
+	jsr oric_restore_game
+	lda #'R' : sta $bb92       ; marqueur : restore revenu
+	lda story_start + 4
+	cmp $02f0
+	bne .ost_fail
+	lda #'P' : sta $bb80 : jmp .ost_end
+.ost_fail
+	lda #'F' : sta $bb80
+.ost_end
+	jmp .ost_end
+}
+
 	jsr z_execute
 
 !ifdef TARGET_C128 {

@@ -3,6 +3,35 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.39.0] - 2026-08-16 — ★ SAUVEGARDE / RESTAURATION (@save/@restore) sur disque ★
+### Fonctionnalité
+`@save`/`@restore` fonctionnent enfin sur Oric (jusqu'ici `kernal_save`/`kernal_load`
+étaient des stubs `$0000` -> plantage). Le flux fichier C64 (slots, noms, `kernal_*`)
+est remplacé par un chemin Oric dédié en **secteurs bruts**.
+### Implémentation
+- **`write_track_sector`** (`disk-oric.asm`, commit précédent) : écriture WD1793 `$A0`,
+  256 o, setup `rts_seek` partagé avec la lecture. Validé aller-retour (`rts_write.sh`).
+- **`oric_save_game`/`oric_restore_game`** (`disk.asm`, sous `TARGET_ORIC`+`VMEM`) :
+  sérialisent la plage CONTIGUË `[stack_start - zp_bytes_to_save, story_start + dynmem_size)`
+  (= ZP sauvés + pile + dynmem, via `.swap_pointers_for_save`) en secteurs bruts à partir de
+  **`SAVE_START_TRACK=150`** (pistes hautes de la FACE 1, toujours libres : la story max va à
+  ~140). Secteur 0 = en-tête (magic `OSAV` + `game_id` + nb secteurs) ; data = secteurs 1+.
+  Restore vérifie magic+game_id (refuse un save d'un autre jeu). Pointeur = `zp_mempos` ($14,
+  hors zone ZP sauvée). `z_ins_save`/`z_ins_restore` branchés (V3 branch true/false, V4+
+  `z_store_result` ; A=1 save OK, 2 restauré, 0 échec).
+### Vérifié
+- **Nouveau test `test-oric/save_test.sh`** (`-DORIC_SAVE_SELFTEST`) : en contexte moteur,
+  save -> corrompt un octet de dynmem -> restore -> **l'octet est reverti** (`P` en $BB80).
+  Round-trip disque prouvé. **PASS**.
+- **Non-régression** : czech.z3 voie B non-VMEM **349/0** (assemble : save/restore gardé sous
+  `VMEM`), czech.z5 VMEM **406/0**.
+### Notes
+Bug corrigé pendant l'intégration : la boucle d'écriture utilisait X comme compteur alors
+que `.osav_wr_next` le clobbe (`ldx .osav_cs`) -> débordait la face 1 -> hang sur secteur
+inexistant ; compteur passé en mémoire. Save/restore = **VMEM disque uniquement** (le
+non-VMEM tape n'a pas de disque inscriptible). Slot unique. Le clavier Oric ne tape pas
+d'accents mais `save`/`restore` (commandes ASCII) fonctionnent.
+
 ## [0.38.0] - 2026-08-16 — Accents FRANÇAIS à l'écran (`-DORIC_ACCENTS`) — jeux français lisibles
 ### Fonctionnalité (opt-in `-DORIC_ACCENTS`)
 L'Oric n'a pas d'accents dans sa police → les jeux français affichaient é→e, à→a, ç→c
