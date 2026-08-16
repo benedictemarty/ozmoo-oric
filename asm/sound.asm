@@ -950,9 +950,19 @@ play_beep
 	sta ted_volume
 	rts
 	} else {
+!ifdef TARGET_ORIC {
+.sound_high_pitched_beep
+	ldx #$60        ; période courte -> tonalité aiguë (AY canal A)
+	bne .oric_do_beep
+.sound_low_pitched_beep
+	ldx #$f0        ; période longue -> tonalité grave
+.oric_do_beep
+	jmp oric_beep   ; bip AY (keyboard-oric.asm) puis rts
+} else {
 .sound_high_pitched_beep
 .sound_low_pitched_beep
 	rts
+}
 	}
 }
 

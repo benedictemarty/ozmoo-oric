@@ -3,6 +3,21 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.41.0] - 2026-08-16 — Son : `@sound_effect` fait biper l'AY-3-8912 (au lieu du no-op)
+### Manque comblé
+`@sound_effect` (bip haut/bas, cf. spec Z-machine p.101) était un **no-op silencieux** sur
+Oric (`.sound_high/low_pitched_beep` = `rts`). Maintenant : vrai bip via la puce **AY-3-8912**.
+### Implémentation
+- **`oric_beep`** (`keyboard-oric.asm`) : programme le PSG via `kay_write` (VIA + handshake
+  PCR) — R0 = période de tonalité (X), R7 = tonalité canal A ON (bit6=1 conservé pour le scan
+  clavier IOA), R8 = volume 15 ; attend ~150 ms ; R8 = 0 (silence) ; R7 = tonalités OFF.
+- `sound.asm` : la branche Oric de `play_beep` appelle `oric_beep` (période `$60` aigu /
+  `$f0` grave) au lieu de `rts`.
+### Vérifié
+- **Nouveau test `test-oric/beep_test.asm`+`.sh`** : programme le PSG, `--psg-trace` montre
+  **R7=$7E** (tonalité A) puis **R8=$0F** (volume 15) → **R8=$00** (silence) → **PASS**.
+- **Non-régression** : czech.z3 **349/0** (le bip assemble, non déclenché par czech).
+
 ## [0.40.0] - 2026-08-16 — Saisie temporisée : horloge jiffy VIA Timer 1 (`kernal_readtime`/`settime`)
 ### Manque comblé
 `kernal_settime`/`kernal_readtime` étaient des stubs `$0000` -> un jeu à `@read`/`@read_char`

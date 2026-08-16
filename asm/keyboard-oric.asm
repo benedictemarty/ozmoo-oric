@@ -207,3 +207,18 @@ oric_settime
 	stx oric_jiffies + 1
 	sty oric_jiffies + 2
 	rts
+
+; --- Bip AY-3-8912 (@sound_effect) : joue une tonalité brève sur le canal A. --------
+; X = période de tonalité (R0 fine ; grand = grave). Utilise kay_write (PSG via VIA).
+; Préserve R7 bit6=1 (IOA output, requis par le scan clavier). ~150 ms puis silence.
+oric_beep
+	lda #0 : sta kay_reg : stx kay_val : jsr kay_write   ; R0 = période (fine)
+	lda #1 : sta kay_reg : lda #0 : sta kay_val : jsr kay_write   ; R1 = 0 (coarse)
+	lda #7 : sta kay_reg : lda #$7e : sta kay_val : jsr kay_write ; R7 : tonalité A ON, IOA out
+	lda #8 : sta kay_reg : lda #$0f : sta kay_val : jsr kay_write ; R8 : volume A = 15
+	ldx #150
+-	jsr kernal_delay_1ms
+	dex : bne -
+	lda #8 : sta kay_reg : lda #0 : sta kay_val : jsr kay_write   ; R8 = 0 (silence)
+	lda #7 : sta kay_reg : lda #$7f : sta kay_val : jsr kay_write ; R7 : tonalités OFF, IOA out
+	rts
