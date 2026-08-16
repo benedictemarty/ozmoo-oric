@@ -210,8 +210,8 @@ kernal_readchar       = $0000       ; >>> PORT TODO (lecture clavier Oric)
 kernal_printchar      = $0000       ; >>> PORT TODO (affichage caractere Oric)
 kernal_load           = $0000       ; >>> PORT TODO (chargement Sedoric)
 kernal_save           = $0000       ; >>> PORT TODO (sauvegarde Sedoric)
-kernal_settime        = $0000       ; >>> PORT TODO (VIA 6522)
-kernal_readtime       = $0000       ; >>> PORT TODO (VIA 6522)
+kernal_settime        = oric_settime  ; horloge jiffy VIA Timer 1 (keyboard-oric.asm)
+kernal_readtime       = oric_readtime  ; saisie temporisée @read/@read_char
 ; kernal_getchar : label reel defini dans keyboard-oric.asm (EPIC 3, non bloquant)
 
 ; =============================================================================

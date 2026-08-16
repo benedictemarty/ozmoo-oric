@@ -160,3 +160,50 @@ krc_to_ascii
 	!byte $79,$68,$67,$65,$00,$61,$73,$77
 	; col7 : 8 l 0 / (RSHIFT) RETURN=13 . =
 	!byte $38,$6c,$30,$2f,$00,$0d,$00,$3d
+
+; =============================================================================
+; Horloge jiffy (1/60 s) pour la SAISIE TEMPORISÉE (@read/@read_char avec délai).
+; Sous SEI l'IRQ ROM ne tourne pas -> on lit le temps en pollant le VIA Timer 1
+; (6522) configuré en free-run 60 Hz (latch 16667 @ 1 MHz). kernal_readtime/settime
+; y pointent (constants-oric.asm). oric_time_init appelé à program_start.
+; VIA : ACR=$030B, T1C-L=$0304, T1C-H=$0305, T1L-L=$0306, IFR=$030D.
+; NB : compte 1 débordement par appel -> exact tant que readtime est pollé >= 60 Hz
+; (cas de la boucle de lecture Ozmoo). Approx sinon.
+oric_jiffies !byte 0, 0, 0
+
+oric_time_init
+	lda $030b
+	and #$7f          ; PB7 désactivé (bit7=0)
+	ora #$40          ; T1 continu / free-run (bit6=1)
+	sta $030b
+	lda #$1b : sta $0306   ; T1L-L (16667 = $411B)
+	lda #$41 : sta $0305   ; T1C-H : démarre le timer, charge le latch, efface IFR b6
+	lda #0
+	sta oric_jiffies
+	sta oric_jiffies + 1
+	sta oric_jiffies + 2
+	rts
+
+; kernal_readtime : renvoie le temps courant en jiffys, A=bas X=milieu Y=haut.
+oric_readtime
+	lda $030d         ; IFR
+	and #$40          ; débordement T1 ?
+	beq .ort_ret
+	lda $0304         ; lire T1C-L efface le flag IRQ T1
+	inc oric_jiffies
+	bne .ort_ret
+	inc oric_jiffies + 1
+	bne .ort_ret
+	inc oric_jiffies + 2
+.ort_ret
+	lda oric_jiffies
+	ldx oric_jiffies + 1
+	ldy oric_jiffies + 2
+	rts
+
+; kernal_settime : fixe l'horloge à A=bas X=milieu Y=haut.
+oric_settime
+	sta oric_jiffies
+	stx oric_jiffies + 1
+	sty oric_jiffies + 2
+	rts

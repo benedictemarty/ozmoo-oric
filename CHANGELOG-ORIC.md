@@ -3,6 +3,31 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.40.0] - 2026-08-16 — Saisie temporisée : horloge jiffy VIA Timer 1 (`kernal_readtime`/`settime`)
+### Manque comblé
+`kernal_settime`/`kernal_readtime` étaient des stubs `$0000` -> un jeu à `@read`/`@read_char`
+TEMPORISÉ (délai non nul) faisait `jsr $0000` = **plantage**. Sous SEI l'IRQ ROM (qui met à
+jour l'horloge) ne tourne pas.
+### Implémentation (`keyboard-oric.asm`)
+- **`oric_time_init`** (appelé à `program_start`) : configure le **VIA 6522 Timer 1** en
+  free-run continu (ACR bit6=1) avec latch **16667** (1/60 s @ 1 MHz).
+- **`oric_readtime`** (`kernal_readtime`) : lit le flag de débordement T1 (IFR bit6) ; à
+  chaque débordement, efface le flag (lecture T1C-L) et incrémente un compteur 24 bits
+  `oric_jiffies` ; renvoie A=bas X=milieu Y=haut. Exact tant que pollé ≥ 60 Hz (cas de la
+  boucle de lecture Ozmoo).
+- **`oric_settime`** (`kernal_settime`) : fixe l'horloge depuis A/X/Y.
+- `constants-oric.asm` : `kernal_settime/readtime` pointent sur ces routines.
+### Vérifié
+- **Nouveau test `test-oric/timer_test.asm`+`.sh`** : configure T1, polle le flag ~0,9 s,
+  compte les jiffys -> **55** (≈ 60 Hz) -> **PASS**.
+- **Non-régression** (le timer init au boot ne casse pas le clavier/VIA) : czech.z3 voie B
+  **349/0**, czech.z5 VMEM **406/0**.
+### Notes
+Précision : 1 débordement compté par appel -> exact si `readtime` pollé ≥ 60 Hz (la boucle
+de lecture Ozmoo l'est). Débloque les jeux temps-réel (Border Zone…) : plus de plantage,
+timeout fonctionnel. Restent (mineurs) : son `@sound_effect`, majuscules accentuées rares,
+V4/V7 non testés.
+
 ## [0.39.0] - 2026-08-16 — ★ SAUVEGARDE / RESTAURATION (@save/@restore) sur disque ★
 ### Fonctionnalité
 `@save`/`@restore` fonctionnent enfin sur Oric (jusqu'ici `kernal_save`/`kernal_load`

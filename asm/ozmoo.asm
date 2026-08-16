@@ -349,6 +349,7 @@ program_start
 -	jmp -
 }
 	jsr kbd_init          ; EPIC 3 : init matrice clavier Oric (DDRB + PSG R7)
+	jsr oric_time_init    ; horloge jiffy VIA Timer 1 (saisie temporisée)
 !ifdef ORIC_ACCENTS {
 	jsr oric_load_accent_glyphs  ; accents FR : glyphes accentués dans le charset $B400
 }
