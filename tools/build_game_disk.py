@@ -155,7 +155,12 @@ def build(master, interp_bin, story_path, out_dsk, name="OZMOO",
     ndesc = 1 if ndata <= FIRST_CAP else 1 + -(-(ndata - FIRST_CAP) // CONT_CAP)
     interp_sectors = ndesc + ndata
     interp_last_track = INTERP_START_TRACK + (interp_sectors - 1) // sectors
-    skip = {DIR_TRACK} | set(range(INTERP_START_TRACK, interp_last_track + 1))
+    # On saute la piste système, les pistes de l'interp AUTO, ET les pistes DOS
+    # basses occupées (catalogue/fichiers du master) : ainsi la story les CONTOURNE
+    # sur la face 0 (au lieu d'entrer en collision), ce qui évite souvent de devoir
+    # déborder sur la face 1 (chemin VMEM 2-faces plus fragile).
+    skip = ({DIR_TRACK} | set(range(INTERP_START_TRACK, interp_last_track + 1))
+            | set(t for t in used_tracks if t < tracks))
 
     # Story sur les pistes HAUTES libres : pistes basses (≈1-14) réservées au DOS,
     # piste système 20 + pistes du fichier interp réservées (sautées). `conf_trk` = 1re
