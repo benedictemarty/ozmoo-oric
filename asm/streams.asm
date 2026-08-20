@@ -828,7 +828,15 @@ z_ins_output_stream
 
 !ifndef NO_DEFAULT_UNICODE_MAP {
 default_unicode_out
-!pet "aouAOUs\"\"eiyEIaeiouyAEIOUYaeiouAEIOUaeiouAEIOUaAoOanoANOaAcCttTTLoO!?" 
+!ifdef TARGET_ORIC {
+	; Ecran Oric = ASCII standard -> !text (pas !pet). Avec !pet, 'e' devient le code
+	; PETSCII $45 qui s'affiche 'E' MAJUSCULE sur l'Oric (bug : accent minuscule strippe
+	; en majuscule). !text garde la casse (e-accent -> 'e'). N'affecte que le strip
+	; (sans -DORIC_ACCENTS) ; avec accents, ce chemin n'est pas atteint.
+	!text "aouAOUs\"\"eiyEIaeiouyAEIOUYaeiouAEIOUaeiouAEIOUaAoOanoANOaAcCttTTLoO!?"
+} else {
+	!pet "aouAOUs\"\"eiyEIaeiouyAEIOUYaeiouAEIOUaeiouAEIOUaAoOanoANOaAcCttTTLoO!?"
+}
 }
 
 translate_zscii_to_petscii

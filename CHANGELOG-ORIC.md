@@ -3,6 +3,23 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.45.0] - 2026-08-20 — Fix casse du strip d'accents (`default_unicode_out` en `!text` sur Oric)
+### Bug
+Sans `-DORIC_ACCENTS`, un accent minuscule était strippé en **MAJUSCULE** (é→`E`, à→`A`,
+î→`I`) au lieu de la base minuscule. Cause : `default_unicode_out` (streams.asm) utilise
+**`!pet`** (PETSCII) — sur C64 `!pet "e"`=$45 s'affiche « e », mais l'écran Oric est en
+**ASCII** où `$45` = **`E` majuscule**.
+### Correctif
+Sous `TARGET_ORIC`, `default_unicode_out` passe en **`!text`** (ASCII) → `$65` (« e »
+minuscule), donc le strip garde la casse (é→e, à→a…). N'affecte que le chemin sans accents
+(avec `-DORIC_ACCENTS`, les codes ZSCII 155-251 sont mappés vers les glyphes avant ce strip).
+### Note
+Pour un jeu **français**, la vraie solution reste **`-DORIC_ACCENTS`** (glyphes accentués) :
+le jeu *Le Chemin des Bonshommes* l'active désormais par défaut (accents é è ê î à É rendus
+correctement à l'écran, vérifié).
+### Vérifié
+- Non-régression : `czech.z3` **349/0** ; `accents_test.sh` **PASS** (voie ORIC_ACCENTS intacte).
+
 ## [0.44.0] - 2026-08-20 — Couleur V5 `@set_colour` « dans les espaces » (opt-in `-DORIC_COLOUR`)
 ### Manque comblé
 `z_ins_set_colour` était un no-op (l'Oric n'a pas de colour-map : la couleur = attributs
