@@ -525,6 +525,13 @@ show_more_prompt
 	; time to show [More]
 	jsr clear_num_rows
 
+!ifdef TARGET_ORIC {
+	; L'Oric n'a pas de colour-map (COLOUR_ADDRESS=SCREEN_ADDRESS) : le "*" inverse
+	; clignotant generique ecrivait des caracteres parasites dans le coin. On
+	; affiche a la place un indicateur texte LISIBLE + attente d'une touche.
+	jsr oric_more_prompt
+	jmp .increase_num_rows_done
+}
 !ifdef TARGET_C128 {
     bit COLS_40_80
     bpl +

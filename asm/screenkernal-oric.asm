@@ -333,6 +333,37 @@ uc_saved_y !byte 0
 toggle_darkmode
 	rts
 
+; --- Prompt [MORE] Oric : indicateur LISIBLE + attente touche ----------------
+; Remplace le "*" inverse clignotant generique (screen.asm), qui s'appuyait sur
+; la colour-map ABSENTE sur Oric (COLOUR_ADDRESS=SCREEN_ADDRESS, reg_background
+; =$0000) -> le coin clignotait en caracteres parasites. Ici : "-ESPACE-" en
+; video inverse (bit7) sur les 8 dernieres colonnes de la derniere ligne (SCR_LAST),
+; attente d'une NOUVELLE touche (anti-rebond kernal_getchar), puis restauration.
+; Appele par show_more_prompt (screen.asm, garde TARGET_ORIC).
+ORIC_MORE_COL = 32                    ; colonne de debut (40 - 8)
+oric_more_prompt
+	ldx #7
+.omp_show
+	lda SCR_LAST+ORIC_MORE_COL,x      ; sauve le caractere masque
+	sta omp_saved,x
+	lda omp_text,x
+	ora #$80                          ; video inverse -> bien visible
+	sta SCR_LAST+ORIC_MORE_COL,x
+	dex
+	bpl .omp_show
+.omp_wait
+	jsr kernal_getchar                ; 0 tant qu'aucune NOUVELLE touche
+	beq .omp_wait
+	ldx #7
+.omp_restore
+	lda omp_saved,x
+	sta SCR_LAST+ORIC_MORE_COL,x
+	dex
+	bpl .omp_restore
+	rts
+omp_text  !text "-ESPACE-"
+omp_saved !fill 8,0
+
 ; Efface la ligne courante (espaces sur la ligne du curseur).
 s_erase_line
 	txa

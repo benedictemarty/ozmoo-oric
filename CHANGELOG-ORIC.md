@@ -3,6 +3,25 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.43.0] - 2026-08-20 — Prompt `[MORE]` lisible sur Oric (au lieu d'un coin clignotant parasite)
+### Manque comblé
+Le prompt de pagination `[MORE]` (attente d'une touche quand l'écran se remplit) reposait, dans
+`screen.asm` (`show_more_prompt`), sur un `*` inversé **clignotant via la colour-map**. L'Oric
+**n'a pas de colour-map** (`COLOUR_ADDRESS = SCREEN_ADDRESS`, `reg_backgroundcolour = $0000`) :
+le clignotement écrivait des **caractères parasites dans le coin bas-droit** → indicateur
+illisible. L'utilisateur ne voyait pas qu'il fallait appuyer sur une touche pour continuer.
+### Implémentation
+- Branche `!ifdef TARGET_ORIC` dans `show_more_prompt` → **`oric_more_prompt`**
+  (`screenkernal-oric.asm`) : affiche **`-ESPACE-` en vidéo inverse** (bit7) sur les 8 dernières
+  colonnes de la dernière ligne (`SCR_LAST`), attend une **nouvelle** touche (anti-rebond
+  `kernal_getchar`), puis **restaure** les caractères masqués. Pas de dépendance colour-map.
+### Vérifié
+- **Nouveau test `test-oric/more_test.sh`** : czech.z3 (sortie longue → pagination) sans envoi de
+  touche → `-ESPACE-` présent à l'écran (lisible en `--screenshot-text`, bit7 masqué) → **PASS**.
+- Restauration OK (aucun `-ESPACE-` résiduel après la touche) ; pagination de l'intro du jeu
+  cathare jusqu'à la salle → OK.
+- **Non-régression** : `cursor_test`, `hhgg_play_test`, `czech.z3` **349/0** → PASS.
+
 ## [0.42.0] - 2026-08-20 — Curseur de saisie : bloc video-inverse visible au prompt `@read`
 ### Manque comblé
 `update_cursor` / `turn_on_cursor` / `turn_off_cursor` (`screenkernal-oric.asm`) étaient des
