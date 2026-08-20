@@ -279,11 +279,57 @@ sso_cl	sta $ffff,y
 sso_nothing
 	rts
 
-; --- routines de support (stubs pour premier affichage ; a etoffer) ---------
-; Curseur materiel : non necessaire pour le premier affichage.
-update_cursor
+; --- Curseur logiciel Oric --------------------------------------------------
+; read_text/read_char (text.asm) encadrent la saisie ligne par turn_on_cursor /
+; turn_off_cursor / update_cursor. Ces routines etaient des stubs (rts) -> aucun
+; curseur ni repere de saisie visible : l'utilisateur tapait "a l'aveugle" alors
+; que le moteur lisait bien les touches (symptome "Ozmoo n'a pas de zone de
+; saisie"). On dessine un bloc video-inverse ($A0 = espace, bit7=1) a la POSITION
+; COURANTE (zp_screenline + zp_screencolumn) :
+;   - char normal : s_printchar ecrit le caractere PAR-DESSUS le bloc, puis
+;     update_cursor redessine le bloc a la nouvelle colonne (l.1544-1546 text.asm) ;
+;   - delete/fin  : turn_off_cursor ecrit un espace a la position courante.
+; La cellule courante est toujours vide pendant la saisie -> effacer = ecrire un
+; espace (exact). Curseur STATIQUE : aucune dependance a USE_BLINKING_CURSOR ni a
+; l'horloge jiffy. zp_cursorswitch ($cc, libre sur Oric) : 1 = visible, 0 = efface.
+; Preserve X (jamais touche) et Y (sauve/restaure) ; A est clobbe (comme le C64).
+CURSOR_GLYPH = $a0            ; espace video-inverse (bloc plein) sur Oric
+
 turn_on_cursor
+	lda #1
+	sta zp_cursorswitch
+	lda #CURSOR_GLYPH
+	jmp uc_write
+
 turn_off_cursor
+	lda #0
+	sta zp_cursorswitch
+	lda #$20                  ; espace : efface le bloc curseur
+	; tombe dans uc_write
+
+uc_write
+	; ecrit A (glyphe/espace) a (zp_screenline)+zp_screencolumn si la colonne est
+	; visible ; preserve Y.
+	sta uc_glyph
+	sty uc_saved_y
+	ldy zp_screencolumn
+	cpy s_screen_width
+	bcs uc_w_done             ; hors ecran (col >= largeur) -> ne rien ecrire
+	lda uc_glyph
+	sta (zp_screenline),y
+uc_w_done
+	ldy uc_saved_y
+	rts
+
+update_cursor
+	lda zp_cursorswitch
+	bne turn_on_cursor        ; actif -> (re)dessine a la position courante
+	jmp turn_off_cursor       ; inactif -> efface
+
+uc_glyph   !byte 0
+uc_saved_y !byte 0
+
+; toggle_darkmode : non implemente sur Oric (pas de video inverse plein ecran).
 toggle_darkmode
 	rts
 

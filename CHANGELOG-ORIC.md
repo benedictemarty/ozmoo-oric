@@ -3,6 +3,32 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.42.0] - 2026-08-20 — Curseur de saisie : bloc video-inverse visible au prompt `@read`
+### Manque comblé
+`update_cursor` / `turn_on_cursor` / `turn_off_cursor` (`screenkernal-oric.asm`) étaient des
+**stubs** (`rts`) : aucun curseur ni repère de saisie n'était dessiné. Le moteur lisait
+pourtant bien les touches (écho `s_printchar` + parser OK, cf. `hhgg_play_test`), mais
+l'utilisateur tapait **« à l'aveugle »** — symptôme rapporté « Ozmoo n'a pas de zone de
+saisie ». (À ne pas confondre avec les prompts de pagination `[MORE]` de l'intro, qui
+consomment une touche sans écho : c'est normal.)
+### Implémentation
+- **Curseur logiciel STATIQUE** : bloc `$A0` (espace vidéo-inverse, bit7=1) écrit à la
+  position courante `zp_screenline + zp_screencolumn`. Char normal → `s_printchar` écrit le
+  caractère **par-dessus** le bloc puis `update_cursor` le redessine à la colonne suivante ;
+  delete/fin → `turn_off_cursor` remet un espace. La cellule de saisie étant toujours vide,
+  effacer = écrire un espace (exact).
+- Flag `zp_cursorswitch` (`$cc`, libre sur Oric) : 1 = visible, 0 = effacé. Préserve X (jamais
+  touché) et Y (sauvé/restauré) ; A clobbé, comme la version C64. **Aucune dépendance** à
+  `USE_BLINKING_CURSOR` ni à l'horloge jiffy (curseur non clignotant, mais bien visible).
+### Vérifié
+- **Nouveau test `test-oric/cursor_test.sh`** : inspecte la RAM écran (`$BB80`) — le bloc `$A0`
+  est masqué par `--screenshot-text` (bit7). Phase 1 : bloc `$A0` juste après `>` au prompt
+  inactif. Phase 2 : après frappe `x`, `>x` échoté et bloc curseur avancé d'une colonne → **PASS**.
+- **Non-régression** : `hhgg_play_test` **PASS** (écho `>wait`, parser « Time passes… »,
+  Backspace) ; `czech.z3` **349/0**.
+- Disquette du jeu *Le Chemin des Bonshommes* reconstruite : `>aide` + bloc curseur visibles
+  à l'écran (capture graphique).
+
 ## [0.41.0] - 2026-08-16 — Son : `@sound_effect` fait biper l'AY-3-8912 (au lieu du no-op)
 ### Manque comblé
 `@sound_effect` (bip haut/bas, cf. spec Z-machine p.101) était un **no-op silencieux** sur
