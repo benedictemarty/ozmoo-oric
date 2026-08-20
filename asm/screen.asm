@@ -798,6 +798,18 @@ print_line_from_buffer
 		ldy first_buffered_column
 -		cpy last_break_char_buffer_pos
 		bcs ++
+!ifdef ORIC_COLOUR {
+		; couleur "dans les espaces" : si ink_buffer[Y] non nul, ecrire l'octet
+		; d'attribut ink (= encre, s'affiche comme un blanc) A LA PLACE du char
+		; (un espace) -> aucun decalage. Sinon, char normal.
+		lda ink_buffer,y
+		beq .plfb_normal
+		sec
+		sbc #1
+		sta (zp_screenline),y
+		jmp .plfb_wrote
+.plfb_normal
+}
 		lda print_buffer,y
 		jsr convert_petscii_to_screencode
 		ora print_buffer2,y
@@ -818,10 +830,13 @@ print_line_from_buffer
 		sta (zp_colourline),y
 	}
 	}
+!ifdef ORIC_COLOUR {
+.plfb_wrote
+}
 		iny
 		bne - ; Always branch
 
-++	
+++
 	!ifdef TARGET_MEGA65 {
 		jsr colour1k
 	}
@@ -886,6 +901,9 @@ printchar_buffered
 .add_char
 	ldx s_screen_width
 	sta print_buffer,y
+!ifdef ORIC_COLOUR {
+	jsr colour_buffer_char        ; gere ink_buffer[Y] (couleur "dans les espaces") ; preserve A,X,Y
+}
 	lda s_reverse
 	sta print_buffer2,y
 	iny

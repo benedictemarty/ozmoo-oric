@@ -41,6 +41,16 @@ s_init
 	bpl -
 	lda #$ff
 	sta s_current_screenpos_row       ; force recalcul
+!ifdef ORIC_COLOUR {
+	lda #0
+	sta pending_ink
+	ldx #39
+-	sta ink_buffer,x                  ; efface la carte d'encre (40 colonnes)
+	dex
+	bpl -
+	lda #7
+	sta s_ink_current
+}
 	jsr s_cls_oric
 	jsr s_setline
 	rts
@@ -406,13 +416,85 @@ selc_done
 	tax
 	rts
 
-; --- z_ins_set_colour (V5) : STUB Oric ---------------------------------------
-; L'Oric est en attributs serie (NO_COLOUR_MAP) : pas de couleur premier plan/fond
-; par cellule bon marche. set_colour ne stocke aucun resultat ; les operandes sont
-; deja consommees par le decodeur. On ignore la couleur (a etoffer ulterieurement
-; via insertion d'attributs serie). No-op fonctionnel.
+; --- z_ins_set_colour (V5) ---------------------------------------------------
+; Sans ORIC_COLOUR : no-op. Avec ORIC_COLOUR : couleur "dans les espaces" gerbee AU
+; NIVEAU DU BUFFER (opt-in). On mappe la couleur de PREMIER PLAN Z-machine -> encre
+; Oric (0-7) et on arme pending_ink ; colour_buffer_char (appele par printchar_buffered)
+; posera l'encre dans ink_buffer[] sur un ESPACE (aucun decalage) ; le blit d'Oric
+; (print_line_from_buffer) ecrit alors l'octet d'attribut a la place de l'espace.
+; Couleurs Z (spec 8.3.1) : 0=courante,1=defaut,2=noir..9=blanc ; encre Oric = zc-2.
+; Le FOND (paper) est ignore (pate d'1 cellule ; l'encre = cas utile).
 z_ins_set_colour
+!ifdef ORIC_COLOUR {
+	lda z_operand_value_low_arr   ; couleur de premier plan
+	cmp #2
+	bcc .zsc_special
+	cmp #10
+	bcs .zsc_done                 ; >9 : ignorer
+	sec
+	sbc #2                        ; z 2..9 -> encre 0..7
+	jmp .zsc_set
+.zsc_special
+	cmp #1
+	bne .zsc_done                 ; 0 = courante -> rien
+	lda #7                        ; 1 = defaut -> blanc
+.zsc_set
+	sta s_ink_current
+	clc
+	adc #1                        ; pending_ink = encre+1 (non nul)
+	sta pending_ink
+.zsc_done
+}
 	rts
+
+!ifdef ORIC_COLOUR {
+; --- colour_buffer_char : appelee par printchar_buffered apres avoir stocke le char
+;     dans print_buffer,Y (Y = colonne). Gere ink_buffer[Y] selon pending_ink, en
+;     logeant l'encre sur un ESPACE (colonne courante si espace, sinon colonne
+;     precedente si espace) -> aucun decalage. PRESERVE A, X, Y.
+colour_buffer_char
+	pha
+	txa
+	pha
+	tya
+	pha
+	lda #0
+	sta ink_buffer,y              ; defaut : pas d'encre a cette colonne (efface obsolete)
+	ldx pending_ink
+	beq .cbc_done                 ; pas d'encre en attente
+	lda print_buffer,y            ; le char qu'on vient de bufferiser
+	cmp #$20                      ; espace ?
+	bne .cbc_nonspace
+	; espace : cette colonne DEVIENT l'attribut d'encre
+	txa                           ; encre+1
+	sta ink_buffer,y
+	lda #0
+	sta pending_ink
+	jmp .cbc_done
+.cbc_nonspace
+	; char visible : colorier la colonne PRECEDENTE si c'est un espace ; sinon differer
+	cpy #0
+	beq .cbc_done
+	dey
+	lda print_buffer,y
+	cmp #$20
+	bne .cbc_done                 ; precedent pas un espace -> attendre un espace
+	txa
+	sta ink_buffer,y
+	lda #0
+	sta pending_ink
+.cbc_done
+	pla
+	tay
+	pla
+	tax
+	pla
+	rts
+
+s_ink_current !byte 7             ; encre Oric active (7 = blanc)
+pending_ink   !byte 0             ; encre+1 a poser (0 = aucune)
+ink_buffer    !fill 40, 0         ; encre+1 par colonne (0 = char normal) pour le blit
+}
 
 ; --- variables couleur / mode (stubs) ---------------------------------------
 darkmode      !byte 0

@@ -3,6 +3,31 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.44.0] - 2026-08-20 — Couleur V5 `@set_colour` « dans les espaces » (opt-in `-DORIC_COLOUR`)
+### Manque comblé
+`z_ins_set_colour` était un no-op (l'Oric n'a pas de colour-map : la couleur = attributs
+**série**, un octet 0-31 dans la ligne qui s'affiche comme un blanc). Ajoute un support
+**opt-in** de la couleur de premier plan, en logeant l'octet d'attribut d'encre **sur un
+ESPACE existant** → **aucun décalage du texte** (technique observée dans le splash Pinforic).
+### Implémentation (gérée au niveau du BUFFER, pas au flush)
+- Le texte Oric bufferisé est blitté **directement** à l'écran par `print_line_from_buffer`
+  (index buffer = colonne, sans passer par `s_printchar`). Poser la couleur au flush se
+  désaligne ; on la gère donc **pendant le buffering**.
+- **`z_ins_set_colour`** mappe la couleur Z (2..9 → encre Oric 0..7 ; 1 → blanc) et arme
+  `pending_ink`. **`colour_buffer_char`** (appelée par `printchar_buffered` après stockage
+  du char) pose `encre+1` dans **`ink_buffer[colonne]`** sur l'espace courant, sinon sur
+  l'espace précédent (sinon diffère). La **boucle de blit** (`screen.asm`, garde `ORIC_COLOUR`)
+  écrit l'octet d'attribut quand `ink_buffer[col]≠0`, à la place du char (l'espace).
+- Limite v1 : un changement en **début de ligne** (pas d'espace avant) est différé au 1ᵉʳ
+  espace ; le **fond** (paper) est ignoré (pâté d'1 cellule). L'encre au fil des mots = OK.
+### Vérifié
+- **Nouveau `test-oric/colour_test.sh`** (jeu `coltest.z5`/`.inf`) : « avant **ROUGE** apres » →
+  encre `$01` sur l'espace col5, `ROUGE` en col6-10 **sans décalage**, `$07` sur l'espace col11,
+  `apres` en col12-16 → **PASS**.
+- **Non-régression** : build **défaut** (sans le flag) inchangé — `czech.z3` **349/0**,
+  `cursor_test`, `more_test` PASS ; build **avec** `-DORIC_COLOUR` — `czech.z5` **406/0**
+  (texte normal intact).
+
 ## [0.43.0] - 2026-08-20 — Prompt `[MORE]` lisible sur Oric (au lieu d'un coin clignotant parasite)
 ### Manque comblé
 Le prompt de pagination `[MORE]` (attente d'une touche quand l'écran se remplit) reposait, dans

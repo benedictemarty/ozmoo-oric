@@ -1,0 +1,11 @@
+Global kv;
+[ Main;
+  print "avant ";
+  @set_colour 3 1;   ! rouge
+  print "ROUGE";
+  @set_colour 9 1;   ! blanc
+  print " apres^";
+  @set_colour 5 1;   ! jaune
+  print "JAUNE tout^";
+  @read_char 1 -> kv;
+];
