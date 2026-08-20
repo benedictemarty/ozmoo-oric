@@ -332,6 +332,15 @@ read_track_sector
 	sty .device
 .have_set_device_track_sector
 !ifdef TARGET_ORIC {
+!ifdef ORIC_FAULT_COUNT {
+	; INSTRUMENTATION (mesure) : compteur 16 bits des lectures physiques de secteur
+	; en ZP libre $f7/$f8 (cursor_row/column, inutilises sur Oric). inc = registres
+	; preserves. Lu via --dump-ram-at. OFF par defaut (aucun impact sans le flag).
+	inc oric_fault_count
+	bne +
+	inc oric_fault_count + 1
++
+}
 	; --- Lecture Microdisc/WD1793 : .track/.sector -> (readblocks_mempos) ------
 	; Registres $0310 cmd/statut, $0311 piste, $0312 secteur, $0313 data, $0314 ctrl.
 	lda readblocks_mempos     ; pointeur destination -> page zero (indirect)
@@ -503,6 +512,9 @@ is_error
 .track  !byte 0
 .sector !byte 0
 .device !byte 0
+!ifdef ORIC_FAULT_COUNT {
+oric_fault_count !byte 0, 0    ; INSTRUMENTATION mesure : compteur secteurs lus (16 bits)
+}
 .blocks_to_go !byte 0, 0
 .blocks_to_go_tmp !byte 0, 0
 .next_disk_index	!byte 0
