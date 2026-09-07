@@ -3,6 +3,28 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [Test] - 2026-09-07 — Réparation du harnais `scroll_unbuf_test` (rot de test)
+### Bug
+Le test standalone `test-oric/scroll_unbuf.asm` source `screenkernal-oric.asm` en isolation ;
+depuis l'ajout du **curseur de saisie (v0.42.0)** et du prompt **`[MORE]` (v0.43.0)**, ce module
+référence `zp_cursorswitch` et `kernal_getchar`, non fournis par le stub du harnais → **échec
+d'assemblage** (`Value not defined`). Le portage lui-même n'était pas affecté (build moteur OK).
+### Correctif
+Ajout dans le harnais des équivalents manquants : `zp_cursorswitch = $cc` (ZP libre, comme le
+code réel) + un stub `kernal_getchar` (`rts`, jamais appelé dans ce test). Aucune modification
+du code de production.
+### Vérifié — SUITE DE NON-RÉGRESSION ORIC COMPLÈTE (2026-09-07, ré-exécutée)
+- Conformité : czech V3 (tape) **349/0**, czech V3 (VMEM disque) **349/0**, czech V5 (VMEM disque) **406/0**.
+- Fonctionnalités : `save_test`, `accents_test`, `colour_test`, `cursor_test`, `more_test`,
+  `timer_test`, `beep_test`, `kbd_table_test`, `scroll_unbuf_test`, `init_e2e` → **PASS**.
+- Jeux réels : `v5_play_test` (dragontroll), `hhgg_play_test` (HHGG V3), `bank_2face_test`
+  (Jigsaw V8 2-faces), `bank_biggame_test` (Aventyr V5 133K) → **PASS**.
+- Disque/banking : `rts_sectorbase`, `rts_side1`, `rts_write`, `bank_v5_test`,
+  `bank_readboundary` → **PASS** ; `bank_e000` (diagnostic RAM $E000) OK.
+### Note outillage
+`~/Oric1/bin2tap` manquant → reconstruit via `make bin2tap` (dans `~/Oric1`), prérequis des
+tests « voie B » tape.
+
 ## [Note] - 2026-09-07 — Dénouement de la proposition d'intégration upstream (issue #84)
 ### Contexte
 Proposition de merge du portage Oric envoyée à l'upstream `johanberntsson/ozmoo`

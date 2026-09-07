@@ -35,6 +35,11 @@ done	jmp done
 ; 110 chars distinctifs : chaque groupe de 10 marque sa position (0-9 A-J ...)
 msg	!text "0123456789ABCDEFGHIJabcdefghij0123456789KLMNOPQRSTklmnopqrst0123456789UVWXYZ0189uvwxyz01890123456789PQRSTUVWXY",0
 
+; Stub harnais : kernal_getchar est fourni normalement par keyboard-oric.asm ;
+; ici il n'est jamais appele (aucun prompt [MORE]/curseur exerce), un rts suffit.
+kernal_getchar
+	rts
+
 ; --- equates ZP (fournies normalement par constants-oric.asm) ---------------
 zp_screenline           = $d1
 zp_screencolumn         = $d3
@@ -46,5 +51,6 @@ s_current_screenpos_row = $b6
 window_start_row        = $2a
 s_ignore_next_linebreak = $b0
 s_reverse               = $b3
+zp_cursorswitch         = $cc         ; curseur de saisie (v0.42.0), libre sur Oric
 
 	!source "../asm/screenkernal-oric.asm"
