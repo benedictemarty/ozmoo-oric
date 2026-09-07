@@ -44,7 +44,7 @@ gros jeux V5 sur 8-bit. ~25 000 lignes, dont seulement ~500 spécifiques cible.
    Microdisc (≈64 Ko exploitables), différent du banking `$01`/`$ff00` Commodore.
 3. **Disque** : pas d'API KERNAL ; appels **Sedoric** propres. La vitesse de
    lecture bloc aléatoire conditionne la jouabilité (pagination VMEM).
-4. **Saisie temporisée V5** : à câbler sur le timer VIA 6522.
+4. **Saisie temporisée V5** : câblée sur le timer VIA 6522 (60 Hz, `oric_readtime`).
 
 ## Verrou go/no-go (levé) ✅
 La *dynamic memory* du jeu doit tenir en RAM Oric. Mesuré sur le datafile
@@ -52,7 +52,35 @@ HHGG (`hhgg_r59.dat`, en réalité **V3** r59) : **dynamic = 9,5 Ko**, high memo
 = 91 Ko (paginable). → tient largement. Un vrai V5 devra être mesuré au cas par
 cas (lecture de l'en-tête Z, offset $0E = base static memory).
 
-## Backlog (épics → stories)
+## État actuel (synthèse — fait foi sur le backlog ci-dessous)
+
+> Ce document contient l'analyse historique du portage (conservée pour référence). Le
+> **backlog détaillé plus bas reflète des états intermédiaires** (jusqu'à ~v0.24). Cette
+> section donne l'état réel au **v0.45.0** (voir `CHANGELOG-ORIC.md` pour le détail daté).
+
+- **EPIC 1 — Squelette de cible** : ✅ terminé.
+- **EPIC 2 — Sortie écran** : ✅ terminé. Texte, inverse-vidéo (attributs série), status-line
+  V3, scroll fenêtré, curseur de saisie, prompt `[MORE]` lisible ; couleur `@set_colour` en
+  opt-in `-DORIC_COLOUR` ; accents FR en opt-in `-DORIC_ACCENTS` (`asm/accents-oric.asm`).
+- **EPIC 3 — Clavier** : ✅ terminé. Table complète, `kernal_getchar` branché sur `read_key`,
+  anti-rebond ; **saisie temporisée** (VIA Timer 1) et **son** (`@sound_effect`, AY-3-8912)
+  ajoutés (`asm/keyboard-oric.asm`).
+- **EPIC 4 — Disque Sedoric** : ✅ terminé. `read_track_sector` (lecture **et écriture**
+  WD1793, 2 faces), VMEM branché, `disk_info`/boot loader génériques d'Ozmoo, `@save`/`@restore`.
+- **EPIC 5 — Amorçage / première exécution** : ✅ terminé. Boot via fichier AUTO Sedoric
+  (`tools/build_game_disk.py`, `oric_disk.py`, `mfm2raw.py`) ; **czech V3 349/0 et V5 406/0
+  en VMEM depuis la disquette**.
+- **EPIC 6 — Qualité** : ✅ suite headless étoffée (~30 scripts `test-oric/*.sh`), CHANGELOG
+  et docs tenus à jour, commits atomiques versionnés.
+- **EPIC 7 — Banking `$C000-$DFFF`** : opt-in `-DORIC_BANKING` (OFF par défaut) ; crash V5
+  initial corrigé ; reste OFF le temps de polir l'affichage sous scroll intensif.
+- **Jeux réels validés** : HHGG (V3, 111 Ko), Adventure/PunyInform (V5, 80 Ko), **Jigsaw
+  (V8, 298 Ko)** et **Heroine (V8, 511 Ko)** sur 2 faces ; fictions FR accentuées.
+- **Rapport amont** : proposition de merge refusée poliment (issue
+  [johanberntsson/ozmoo#84](https://github.com/johanberntsson/ozmoo/issues/84)) → **portage
+  maintenu en fork autonome public** `benedictemarty/ozmoo-oric`.
+
+## Backlog (épics → stories) — *historique, états intermédiaires*
 
 ### EPIC 1 — Squelette de cible ✅ *(terminé)*
 - [x] Branche git `oric-port`, identité bmarty
@@ -81,7 +109,7 @@ cas (lecture de l'en-tête Z, offset $0E = base static memory).
     libre `$B000-$B0CC`** : zone `$A600-$B3FF` (au-dessus des blocs VMEM non-bankés
     `$3E00..$A5FF`, sous le charset Oric `$B400`/`$B800`).
 
-### EPIC 2 — Sortie écran (afficher du texte) *(en cours)*
+### EPIC 2 — Sortie écran (afficher du texte) ✅ *(terminé — voir « État actuel »)*
 - [x] **Pipeline de test bout-en-bout prouvé** : ACME → `bin2tap` → Phosphoric
       (CLOAD + `-f` fast-load, `--type-keys`) → exécution → `--screenshot-text`.
 - [x] Harnais réutilisable `test-oric/run-test.sh` (assemble + exécute + assertion).
@@ -102,9 +130,9 @@ cas (lecture de l'en-tête Z, offset $0E = base static memory).
       (`test-oric/s_printchar_test.asm` : "HELLO VIA S_PRINTCHAR" + 2e ligne).
 - [x] **Intégré au build** : `ozmoo.asm` source `screenkernal-oric.asm` pour
       `TARGET_ORIC` ; le **moteur complet assemble** (ACME exit 0).
-- [ ] Attributs série (couleur/inverse via bit 7) dans le flux d'impression.
-- [ ] Fenêtres / status-line (V3) — actuellement fenêtre unique.
-- [ ] Preuve « le moteur imprime » de bout en bout : **gâtée par le chargement**
+- [x] Inverse-vidéo (bit 7) dans le flux ; couleur `@set_colour` en opt-in `-DORIC_COLOUR`.
+- [x] Status-line V3 + fenêtrage du scroll.
+- [x] Preuve « le moteur imprime » de bout en bout : ✅ czech/jeux réels rendus. *(hist. : jadis gâtée par le chargement*
       du story-file (EPIC 4). Le contrat écran, lui, est prouvé isolément.
 
 **Leçon clé (corrigée)** : le bug initial du curseur n'était **pas** un conflit
@@ -118,18 +146,18 @@ cette règle.
 Chargement ML fiable = tape auto-run + déclenchement `CLOAD""` via `--type-keys`
 (le `-f` seul n'amorce pas la lecture). Cf. `test-oric/run-test.sh`.
 
-### EPIC 3 — Clavier *(cœur validé)*
+### EPIC 3 — Clavier ✅ *(terminé — voir « État actuel »)*
 - [x] **`asm/keyboard-oric.asm` : scan matrice + `read_key` → ASCII, VALIDÉ.**
       Mécanisme : colonne via VIA ORB `$0300` bits0-2, ligne via masque PSG R14
       (`~(1<<row)`), détection sur PB3 ; handshake PSG via PCR `$030C`
       (latch=$EE, write=$EC, inactif=$CC) ; prérequis PSG R7 bit6=1 (port A entrée).
       Tests PASS : `'1'`→`'1'`, `'0'`→`'0'`, espace→espace (via `--type-keys`).
-- [ ] Compléter la table `(col*8+row)→ASCII` (lettres a-z, shift, touches spéciales
+- [x] Table `(col*8+row)→ASCII` complète (lettres a-z, shift, touches spéciales
       Return/Del/flèches). Table partielle extraite de `keyboard.c` (mécanisme prouvé).
-- [ ] Brancher `kernal_readchar`/`kernal_getchar` sur `read_key` (`read_key`=non bloquant ;
+- [x] `kernal_getchar` branché sur `read_key` + anti-rebond (`read_key`=non bloquant ;
       `readchar`/CHRIN = version bloquante avec attente).
 
-### EPIC 4 — Disque Sedoric (le cœur) *(kickoff)*
+### EPIC 4 — Disque Sedoric (le cœur) ✅ *(terminé — voir « État actuel »)*
 **Analyse du contrat Ozmoo (fait) :** la seule routine réellement machine-spécifique
 est **`read_track_sector`** (`disk.asm`) :
 - entrée : `A`=piste, `X`=secteur, `Y`=device, mot en `readblocks_mempos` = adresse dest.
@@ -162,12 +190,12 @@ ROMDIS b1, EPROM b7, INTENA b0). Commandes WD1793 : `$00` Restore, `$10` Seek
       inline sous `!ifdef TARGET_ORIC` (au point `.have_set_device_track_sector`,
       lit `.track`/`.sector` → `zp_mempos`). **Moteur complet assemble (ACME exit 0)**
       avec ce chemin VMEM → `readblock` → lecture Microdisc réelle.
-- [ ] Setup `disk_info` (géométrie disque Oric) + placement du story-file.
-- [ ] Écriture secteur (commande `$A0`) → save / restore d'état.
-- [ ] Boot loader : charger l'interpréteur + le story-file depuis disque et
+- [x] Setup `disk_info` (géométrie) + placement story via `tools/oric_disk.py`/`build_game_disk.py`.
+- [x] Écriture secteur (commande `$A0`, `write_track_sector`) → `@save`/`@restore` (v0.39.0).
+- [x] Boot loader générique d'Ozmoo réutilisé (fichier AUTO Sedoric) : charge l'interpréteur + story et
       initialiser `disk_info` → **première exécution réelle du moteur**.
 
-### EPIC 5.0 — Boot loader / première exécution *(analyse & plan)*
+### EPIC 5.0 — Boot loader / première exécution ✅ *(résolu — historique d'analyse ci-dessous)*
 
 **Constat clé** : en mode VMEM, `disk_info` (`disk.asm`, buffer `!fill 71` pour Z3)
 n'est **pas** figé dans le binaire : il est **rempli au boot** en lisant une
@@ -206,13 +234,13 @@ clavier ensemble), puis Voie A pour les vrais jeux V5 paginés.
       via tape (CLOAD). Stories de test : `test/czech.z3`, `oztest.z3`, `strictz.z3` (v3).
 - [x] **L'interpréteur porté S'EXÉCUTE sur Oric** : `program_start` atteint (prouvé par
       marqueur 'Z' + halt, drapeau `ORIC_HALT_AT_START`). L'init efface l'écran (`s_init`).
-- [~] **Blocage** dans le code d'init, entre `deletable_screen_init_1` (cls OK) et
+- [x] *(résolu)* Blocage d'init (jadis entre `deletable_screen_init_1` (cls OK) et
       `deletable_init` (ligne ~1058) — indépendant du story (le marqueur '1' *avant*
       `deletable_init` ne s'affiche pas). Bisection via drapeau `ORIC_DEBUG_INIT`.
-- [ ] **Bug identifié** : `lda #147 : jsr s_printchar` (147 = « clear screen » PETSCII)
+- [x] *(résolu)* `s_printchar` gère `#147` (clear screen PETSCII)
       non géré par `screenkernal-oric` (l'écrirait comme caractère). À traiter dans
       `s_printchar` (codes de contrôle : 147=cls, etc.).
-- [ ] Localiser/corriger le blocage d'init (probable code REU/SID/scrollback mal gardé
+- [x] *(résolu)* Blocage d'init corrigé (SEI + gardes REU/SID/scrollback ;
       pour Oric, ou routine appelant un placeholder). Puis atteindre l'exécution Z-code.
 
 **Voie A (jeux réels) — plan détaillé et socle vérifié.** La voie B (non-VMEM,
@@ -374,14 +402,14 @@ tentative inline a dérivé sur un descripteur hors borne. Puis **1re exécution
       charset/écran `$B400-$BFDF`, blocs étendus `$C000-$DDFF` adressés directs (romdis off),
       `first_banked=$E0` (cache inerte), vmap relogé `$DE00`, `vmap_max_entries` -12 pages.
 - [x] Validé **V3** : HHGG 42→59 blocs, banking engagé (dump RAM `$C000+` peuplé), texte OK.
-- [ ] **Bug V5 à résoudre** : advent_punyinform crashe au traitement de la saisie avec
+- [x] **Bug V5 corrigé** (débordement `s_scroll_oric`) ; banking data-correct V3/V5. *(hist. : advent_punyinform crashait à la saisie avec*
       `-DORIC_BANKING` (OK sans). Cause non isolée (reads/z_pc/EOR#1 vérifiés cohérents).
       → activer par défaut seulement une fois ce crash V5 corrigé.
 
 ### EPIC 6 — Qualité (transverse, à chaque incrément)
-- [ ] Tests d'assemblage automatisés (build Oric ne régresse pas)
-- [ ] Tests d'exécution headless Phosphoric (comparaison de captures écran texte)
-- [ ] CHANGELOG + docs tenus à jour, commits atomiques versionnés
+- [x] Tests d'assemblage automatisés (build Oric ne régresse pas)
+- [x] Tests d'exécution headless Phosphoric (~30 scripts `test-oric/*.sh`)
+- [x] CHANGELOG + docs tenus à jour, commits atomiques versionnés
 
 ## Stratégie de test (Phosphoric, headless)
 ```bash
