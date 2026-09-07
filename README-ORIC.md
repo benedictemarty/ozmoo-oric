@@ -12,6 +12,23 @@ du jeu depuis la disquette à la demande).
 > tel quel ; le travail porte sur la couche d'entrées/sorties `TARGET_ORIC` (écran, clavier,
 > disque Microdisc/Sedoric, carte mémoire) et l'outillage de construction de disquettes.
 
+## Rapport avec le projet amont (fork autonome)
+
+Ce portage est maintenu comme un **fork autonome et public** :
+<https://github.com/benedictemarty/ozmoo-oric>.
+
+Une proposition d'intégration a été soumise à l'amont
+([johanberntsson/ozmoo#84](https://github.com/johanberntsson/ozmoo/issues/84), 2026-09-07).
+L'auteur d'Ozmoo a jugé le code **propre et bien isolé** (tout l'Oric est encapsulé derrière
+`!if TARGET_ORIC { ... }`, sans impact sur les cibles existantes) mais a préféré **ne pas
+fusionner** la cible Oric — coût de maintenance (émulateur + tests de non-régression à chaque
+release) et diffusion très restreinte de l'Oric hors de France/UK — tout en proposant d'ajouter
+un lien vers ce dépôt depuis sa documentation.
+
+En conséquence, le développement se poursuit ici, avec la **branche amont synchronisée**
+(`upstream = johanberntsson/ozmoo`) pour continuer à bénéficier des évolutions du moteur
+Z-machine.
+
 ## État — ce qui fonctionne
 
 - ✅ **Moteur Z-machine V3 en VMEM depuis la disquette** — `czech.z3` (testeur de conformité)

@@ -3,6 +3,22 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [Note] - 2026-09-07 — Dénouement de la proposition d'intégration upstream (issue #84)
+### Contexte
+Proposition de merge du portage Oric envoyée à l'upstream `johanberntsson/ozmoo`
+([issue #84](https://github.com/johanberntsson/ozmoo/issues/84)).
+### Réponse de l'auteur (Johan Berntsson, 2026-09-07)
+Code jugé **propre et bien isolé** (tout l'Oric est derrière `!if TARGET_ORIC { ... }`,
+aucun impact sur les cibles existantes), mais **refus poli du merge** : coût de maintenance
+(émulateur + non-régression à chaque release) et Oric = cible de niche hors France/UK.
+Proposition d'**ajouter un lien** vers le fork depuis leur doc/README.
+### Décision
+- **Portage maintenu en fork autonome** : `benedictemarty/ozmoo-oric`, synchro `upstream`
+  conservée pour bénéficier des évolutions du moteur Z-machine.
+- Dépôt **repassé public** (description + homepage vers l'upstream ajoutées).
+- **Réponse postée** sur l'issue #84 : remerciement, confirmation du fork autonome, lien
+  accepté avec texte prêt à coller pour leur README.
+
 ## [0.45.0] - 2026-08-20 — Fix casse du strip d'accents (`default_unicode_out` en `!text` sur Oric)
 ### Bug
 Sans `-DORIC_ACCENTS`, un accent minuscule était strippé en **MAJUSCULE** (é→`E`, à→`A`,
