@@ -14,7 +14,7 @@ OUT=temp/save; mkdir -p "$OUT"
 ZV=$(python3 -c "print(open('$STORY','rb').read(1)[0])")
 sed "s/@fn@/czech/g" asm/file-name.tpl  > temp/file-name.asm
 sed "s/@fn@/czech/g" asm/walkthrough.tpl > temp/walkthrough.asm
-sed -e 's/@0s@//g;s/@1s@//g;s/@2s@//g;s/@3s@//g;s/@0c@/0/g;s/@1c@/0/g;s/@2c@/0/g;s/@3c@/0/g;s/@vs@/Oric-0.1/g' \
+sed -e 's/@0s@//g;s/@1s@//g;s/@2s@//g;s/@3s@//g;s/@0c@/0/g;s/@1c@/0/g;s/@2c@/0/g;s/@3c@/0/g;s/@vs@/Oric-0.1/g' -e "s#@date@#$(date +%d/%m/%Y)#g" \
     asm/splashlines.tpl > temp/splashlines.asm
 
 ( cd asm && acme --setpc 0x0500 -DTARGET_ORIC=1 -DZ${ZV}=1 -DVMEM=1 -DORIC_SAVE_SELFTEST=1 \

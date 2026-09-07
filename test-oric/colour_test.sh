@@ -17,7 +17,7 @@ command -v inform6 >/dev/null && inform6 -v5 test-oric/coltest.inf "$STORY" >/de
 FN=coltest
 sed "s/@fn@/$FN/g" asm/file-name.tpl  > "$OUT/file-name.asm"
 sed "s/@fn@/$FN/g" asm/walkthrough.tpl > "$OUT/walkthrough.asm"
-sed -e 's/@0s@//g' -e 's/@1s@//g' -e 's/@2s@//g' -e 's/@3s@//g' -e 's/@0c@/0/g' -e 's/@1c@/0/g' \
+sed -e 's/@0s@//g' -e 's/@1s@//g' -e 's/@2s@//g' -e 's/@3s@//g' -e "s#@date@#$(date +%d/%m/%Y)#g" -e 's/@0c@/0/g' -e 's/@1c@/0/g' \
     -e 's/@2c@/0/g' -e 's/@3c@/0/g' -e "s/@vs@/x/g" asm/splashlines.tpl > "$OUT/splashlines.asm"
 cd asm
 acme --setpc 0x0500 -DTARGET_ORIC=1 -DZ5=1 -DORIC_COLOUR=1 -DCACHE_PAGES=4 -DSTACK_PAGES=4 -DCONF_TRK=1 \

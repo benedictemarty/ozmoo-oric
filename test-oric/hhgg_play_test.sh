@@ -22,7 +22,7 @@ ZVER=$(python3 -c "import sys;print(open(sys.argv[1],'rb').read(1)[0])" "$STORY"
 FN="hhgg"; VS="Oric-0.1"
 sed "s/@fn@/$FN/g" asm/file-name.tpl  > "temp/file-name.asm"
 sed "s/@fn@/$FN/g" asm/walkthrough.tpl > "temp/walkthrough.asm"
-sed -e 's/@0s@//g' -e 's/@1s@//g' -e 's/@2s@//g' -e 's/@3s@//g' \
+sed -e 's/@0s@//g' -e 's/@1s@//g' -e 's/@2s@//g' -e 's/@3s@//g' -e "s#@date@#$(date +%d/%m/%Y)#g" \
     -e 's/@0c@/0/g' -e 's/@1c@/0/g' -e 's/@2c@/0/g' -e 's/@3c@/0/g' \
     -e "s/@vs@/$VS/g" asm/splashlines.tpl > "temp/splashlines.asm"
 

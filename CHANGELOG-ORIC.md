@@ -3,6 +3,29 @@
 Format inspiré de Keep a Changelog. Le portage suit une logique agile
 (incréments verticaux, tests et documentation tenus à jour à chaque commit).
 
+## [0.46.0] - 2026-09-07 — Page de démarrage (splash) : nom, version, date de build
+### Ajout
+Le bloc haut du splash (lignes 0-3, rangées écran 2/4/6/8, jusque-là vides sur Oric) affiche
+désormais une **page de démarrage** identifiant le portage :
+- ligne 1 : **Benedicte Marty** (auteur) ;
+- ligne 2 : **Ozmoo Oric-0.1** (version, fixe — indépendante de `@vs@` qui varie selon le jeu) ;
+- ligne 3 : **date de build** (auto, `date +%d/%m/%Y` injectée à la construction).
+### Implémentation
+- `asm/splashlines.tpl` : `splashline0-3` reçoivent une branche `!ifdef TARGET_ORIC { … }`
+  (contenu Oric fixe + placeholder `@date@`), sinon comportement d'origine (`@Ns@`) pour les
+  autres cibles → **aucun impact C64/…**.
+- Substitution `@date@` ajoutée à **tous** les scripts qui génèrent `splashlines.asm`
+  (`build-oric.sh`, `test-oric/*.sh`, `jeu_cathare/build-oric-disk.sh`), délimiteur `#`.
+### Note (police ASCII du splash)
+Le splash passe par `printstring_raw` (police **ASCII**, hors traduction accentuée `-DORIC_ACCENTS`) :
+le prénom est donc écrit **sans accent** (« Benedicte ») pour rester lisible sur tous les builds ;
+un « é » y afficherait un glyphe cassé. L'Oric rend ce splash en capitales (cosmétique).
+### Vérifié
+- Rendu écran réel (Phosphoric, capture texte) : `BENEDICTE MARTY` / `OZMOO ORIC-0.1` /
+  `07/09/2026` visibles aux rangées 4/6/8.
+- Non-régression : czech.z3 349/0 (tape + VMEM disque), czech.z5 406/0 (VMEM disque),
+  `bank_2face_test`, `accents_test` → PASS (le splash n'affecte pas les assertions de jeu).
+
 ## [Test] - 2026-09-07 — Réparation du harnais `scroll_unbuf_test` (rot de test)
 ### Bug
 Le test standalone `test-oric/scroll_unbuf.asm` source `screenkernal-oric.asm` en isolation ;

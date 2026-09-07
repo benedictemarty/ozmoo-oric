@@ -1,11 +1,27 @@
-splashline0 
+splashline0
+!ifdef TARGET_ORIC {
+	!pet "        * * * * * * * * * * * * * *", 0
+} else {
 	!pet "@0s@", 0
+}
 splashline1
+!ifdef TARGET_ORIC {
+	!pet "             Benedicte Marty", 0
+} else {
 	!pet "@1s@", 0
+}
 splashline2
+!ifdef TARGET_ORIC {
+	!pet "               Ozmoo Oric-0.1", 0
+} else {
 	!pet "@2s@", 0
+}
 splashline3
+!ifdef TARGET_ORIC {
+	!pet "                 @date@", 0
+} else {
 	!pet "@3s@", 0
+}
 splashline4
 !ifdef UNDO {
 	!pet "          Ozmoo @vs@ with Undo",0

@@ -18,7 +18,7 @@ sed "s/@fn@/$FN/g" walkthrough.tpl > "$TMP/walkthrough.asm"
 
 # splashlines.asm : neutralise les placeholders texte (@Ns@) et couleur (@Nc@),
 # et la version (@vs@).
-sed -e 's/@0s@//g' -e 's/@1s@//g' -e 's/@2s@//g' -e 's/@3s@//g' \
+sed -e 's/@0s@//g' -e 's/@1s@//g' -e 's/@2s@//g' -e 's/@3s@//g' -e "s#@date@#$(date +%d/%m/%Y)#g" \
     -e 's/@0c@/0/g' -e 's/@1c@/0/g' -e 's/@2c@/0/g' -e 's/@3c@/0/g' \
     -e "s/@vs@/$VS/g" \
     splashlines.tpl > "$TMP/splashlines.asm"
